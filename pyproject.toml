@@ -1,0 +1,33 @@
+[project]
+name = "mtv-agent"
+version = "0.1.4"
+description = "AI agent for MTV/Forklift VM migrations"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "openai",
+    "mcp",
+    "pydantic-settings",
+    "httpx",
+    "pyyaml",
+    "sse-starlette",
+    "claude-openai-proxy",
+    "kubernetes",
+]
+
+[project.scripts]
+mtv-agent = "mtv_agent.cli:main"
+
+[project.optional-dependencies]
+dev = ["ruff"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+artifacts = ["mtv_agent/web_dist/**"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["mtv_agent"]

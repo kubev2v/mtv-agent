@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# VSCode files
+.vscode/
+
+# Virtual environments
+.venv
+
+# Ruff cache
+.ruff_cache/
+
+# Config (may contain API keys or tokens)
+config.json
+
+# Web UI
+web/node_modules/
+web/dist/
+web/bun.lock
+
+# Bundled web dist (build artifact for pip package)
+mtv_agent/web_dist/
+
+.cache/
