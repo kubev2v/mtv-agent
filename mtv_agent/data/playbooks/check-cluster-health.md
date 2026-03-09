@@ -9,8 +9,8 @@ tools:
   - metrics_read (server: kubectl-metrics)
   - debug_read (server: kubectl-debug-queries)
 skills:
-  - observe-metrics
-  - observe-metrics-reference
+  - metrics-tool-guide
+  - metrics-query-cookbook
 ---
 
 # Check Cluster Health
@@ -146,7 +146,7 @@ Present a summary table:
 
 **IF all checks pass**: Tell the user the cluster is healthy.
 **IF any check is WARN/ERR**: Highlight the issues and suggest remediation:
-- **Ceph ERR/WARN**: Check storage pods, run `check-mtv-health` playbook, see observe-metrics-reference for Ceph queries
+- **Ceph ERR/WARN**: Check storage pods, run `check-mtv-health` playbook, see metrics-query-cookbook for Ceph queries
 - **Storage > 80%**: Clean up unused PVCs, Released PVs, or expand capacity
 - **Nodes NotReady**: Check node conditions and kubelet status
 - **Memory > 90%**: Identify heavy consumers, consider scaling the cluster

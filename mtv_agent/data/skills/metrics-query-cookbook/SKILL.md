@@ -1,15 +1,53 @@
 ---
-name: observe-metrics-reference
-description: Reference for Prometheus metrics queries, available labels, and metrics tables for storage (Ceph/ODF), network traffic, pod/container statistics, and Forklift/MTV migrations. Use alongside the observe-metrics skill for detailed per-domain queries and label filters.
+name: metrics-query-cookbook
+description: Cookbook of ready-to-use PromQL queries, preset catalog, metric name dictionaries, and label references for Ceph storage, network traffic, pod statistics, and MTV migrations. Use when you need specific queries, exact metric names, or label filters.
 ---
 
-# Metrics Reference
+# Metrics Query Cookbook
 
-Per-domain queries, available labels, and metrics tables for OpenShift clusters with ODF, OVN-Kubernetes, KubeVirt, and Forklift/MTV.
+Ready-to-use queries, preset catalog, and metric name/label references for OpenShift clusters with ODF, OVN-Kubernetes, KubeVirt, and Forklift/MTV.
 
 All examples use the **kubectl-metrics** MCP server tools (`metrics_read` and `metrics_help`).
 
 **Output format guidance**: Use default (`markdown`) when presenting to user. Use `output: "json"` only when you need to parse values programmatically. Use `selector` to filter results by labels post-query.
+
+---
+
+## Preset Catalog
+
+Every preset works as both an instant (default) and range query. Pass `start` to get a time-series trend.
+
+### Cluster & Namespace
+
+| Preset | Description |
+|--------|-------------|
+| `cluster_cpu_utilization` | Cluster CPU utilization percentage |
+| `cluster_memory_utilization` | Cluster memory utilization percentage |
+| `cluster_pod_status` | Pod counts by phase (Running, Pending, Failed, Succeeded, Unknown) |
+| `cluster_node_readiness` | Node readiness status counts |
+| `namespace_cpu_usage` | Top 10 namespaces by CPU usage (cores) |
+| `namespace_memory_usage` | Top 10 namespaces by memory usage (bytes) |
+| `namespace_network_rx` | Top 10 namespaces by network receive rate |
+| `namespace_network_tx` | Top 10 namespaces by network transmit rate |
+| `namespace_network_errors` | Network errors + drops by namespace (top 10) |
+| `pod_restarts_top10` | Top 10 pods by container restart count |
+
+### Forklift / MTV Migration
+
+| Preset | Description |
+|--------|-------------|
+| `mtv_migration_status` | Migration counts by status (succeeded/failed/running) |
+| `mtv_plan_status` | Plan-level status counts |
+| `mtv_migration_duration` | Migration duration per plan (seconds) |
+| `mtv_avg_migration_duration` | Average migration duration (seconds) |
+| `mtv_data_transferred` | Total bytes migrated per plan |
+| `mtv_net_throughput` | Migration network throughput |
+| `mtv_storage_throughput` | Migration storage throughput |
+| `mtv_migration_pod_rx` | Migration pod receive rate (bytes/sec, top 20) |
+| `mtv_migration_pod_tx` | Migration pod transmit rate (bytes/sec, top 20) |
+| `mtv_forklift_traffic` | Forklift operator pod network traffic (bytes/sec) |
+| `mtv_vmi_migrations_pending` | KubeVirt VMI migrations in pending phase |
+| `mtv_vmi_migrations_running` | KubeVirt VMI migrations in running phase |
 
 ---
 
@@ -98,11 +136,11 @@ metrics_read { "command": "query", "flags": { "query": "ceph_pg_degraded", "outp
 ### Network traffic by namespace
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_namespace_network_rx", "output": "markdown" } }
+metrics_read { "command": "preset", "flags": { "name": "namespace_network_rx", "output": "markdown" } }
 ```
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_namespace_network_tx", "output": "markdown" } }
+metrics_read { "command": "preset", "flags": { "name": "namespace_network_tx", "output": "markdown" } }
 ```
 
 ### Network traffic by pod in a namespace
@@ -126,7 +164,7 @@ metrics_read {
 ### Network errors and drops by namespace
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_network_errors", "output": "markdown" } }
+metrics_read { "command": "preset", "flags": { "name": "namespace_network_errors", "output": "markdown" } }
 ```
 
 ### Node-level network throughput
@@ -175,34 +213,25 @@ metrics_read { "command": "query", "flags": { "query": "topk(15, count by (names
 ### Pod phase summary
 
 ```json
-metrics_read { "command": "query", "flags": { "query": "count by (phase)(kube_pod_status_phase == 1)", "output": "markdown" } }
+metrics_read { "command": "preset", "flags": { "name": "cluster_pod_status", "output": "markdown" } }
 ```
 
 ### Container CPU usage by namespace
 
 ```json
-metrics_read {
-  "command": "query",
-  "flags": { "query": "topk(10, sort_desc(sum by (namespace)(namespace:container_cpu_usage:sum)))", "output": "markdown" }
-}
+metrics_read { "command": "preset", "flags": { "name": "namespace_cpu_usage", "output": "markdown" } }
 ```
 
 ### Container memory usage by namespace
 
 ```json
-metrics_read {
-  "command": "query",
-  "flags": { "query": "topk(10, sort_desc(sum by (namespace)(namespace:container_memory_usage_bytes:sum)))", "output": "markdown" }
-}
+metrics_read { "command": "preset", "flags": { "name": "namespace_memory_usage", "output": "markdown" } }
 ```
 
 ### Container restart counts (instability indicator)
 
 ```json
-metrics_read {
-  "command": "query",
-  "flags": { "query": "topk(10, sort_desc(kube_pod_container_status_restarts_total))", "output": "markdown" }
-}
+metrics_read { "command": "preset", "flags": { "name": "pod_restarts_top10", "output": "markdown" } }
 ```
 
 ### Pods with high recent restarts (use `debug_read` for details)
@@ -310,6 +339,10 @@ metrics_read { "command": "preset", "flags": { "name": "mtv_storage_throughput",
 metrics_read { "command": "preset", "flags": { "name": "mtv_migration_duration", "output": "markdown" } }
 ```
 
+```json
+metrics_read { "command": "preset", "flags": { "name": "mtv_avg_migration_duration", "output": "markdown" } }
+```
+
 ### Migration alerts
 
 ```json
@@ -340,7 +373,7 @@ metrics_read { "command": "query", "flags": { "query": "mtv_migrations_status_to
 metrics_read { "command": "query", "flags": { "query": "mtv_workload_migrations_status_total{plan=\"PLAN_UUID\", status=\"Failed\"}", "output": "markdown" } }
 ```
 
-### Grouping migration metrics with sum by / count by
+### Grouping migration metrics
 
 ```json
 metrics_read { "command": "query", "flags": { "query": "sum by (provider)(mtv_migration_data_transferred_bytes)", "output": "markdown" } }
@@ -428,14 +461,14 @@ metrics_read { "command": "preset", "flags": { "name": "mtv_vmi_migrations_runni
 
 ## Quick Health Dashboard
 
-Run key queries for an overview:
+Run key queries for a cluster overview:
 
 ```json
-metrics_read { "command": "query", "flags": { "query": "100 - avg by (instance)(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))*100", "output": "markdown" } }
+metrics_read { "command": "preset", "flags": { "name": "cluster_cpu_utilization", "output": "markdown" } }
 ```
 
 ```json
-metrics_read { "command": "query", "flags": { "query": "(1 - node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)*100", "output": "markdown" } }
+metrics_read { "command": "preset", "flags": { "name": "cluster_memory_utilization", "output": "markdown" } }
 ```
 
 ```json
@@ -443,7 +476,7 @@ metrics_read { "command": "query", "flags": { "query": "ceph_health_status", "ou
 ```
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_namespace_network_rx", "output": "markdown" } }
+metrics_read { "command": "preset", "flags": { "name": "namespace_network_rx", "output": "markdown" } }
 ```
 
 ```json

@@ -9,8 +9,8 @@ tools:
   - mtv_read (server: kubectl-mtv)
   - debug_read (server: kubectl-debug-queries)
 skills:
-  - observe-metrics
-  - observe-metrics-reference
+  - metrics-tool-guide
+  - metrics-query-cookbook
 ---
 
 # Migration Status Report

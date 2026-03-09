@@ -9,7 +9,7 @@ tools:
   - debug_read (server: kubectl-debug-queries)
   - metrics_read (server: kubectl-metrics)
 skills:
-  - observe-metrics
+  - metrics-tool-guide
 ---
 
 # Troubleshoot Migration
