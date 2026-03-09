@@ -1,9 +1,9 @@
 ---
-name: observe-metrics
-description: Observe cluster metrics via Prometheus/Thanos. Use when the user wants to check cluster metrics, monitor network traffic, storage I/O, pod resource usage, VM migration throughput, or discover available Prometheus metrics. Covers metric discovery, storage (Ceph/ODF), network traffic by namespace/pod, pod statistics, and Forklift/MTV migration monitoring.
+name: metrics-tool-guide
+description: Guide for using the Prometheus/Thanos metrics tools: output rules, query syntax, filtering, discovery, and PromQL reference. Use when the user wants to check cluster metrics and you need to know how to call metrics_read and metrics_help.
 ---
 
-# Observe Cluster Metrics
+# Metrics Tool Guide
 
 Use the **kubectl-metrics** MCP server tools to query Prometheus/Thanos.
 
@@ -12,7 +12,34 @@ Use the **kubectl-metrics** MCP server tools to query Prometheus/Thanos.
 | `metrics_read` | user-kubectl-metrics | Execute queries, run presets, discover metrics |
 | `metrics_help` | user-kubectl-metrics | Get flag details, list presets, PromQL reference |
 
-For detailed per-domain queries, labels, and metrics tables see the `observe-metrics-reference` skill.
+For ready-to-use queries, preset catalog, and metric name/label references see the `metrics-query-cookbook` skill.
+
+## Presentation Rules
+
+### Name every metric
+
+When presenting query results, always tell the user what metric was queried and what it measures. For example say "**Ceph cluster health** (`ceph_health_status`): 0 = OK" rather than dumping a raw table without context.
+
+### Batch related queries
+
+When multiple related metrics are needed (e.g. RX + TX, CPU + memory), use the multi-query feature of `query_range` instead of making separate calls:
+
+```json
+metrics_read {
+  "command": "query_range",
+  "flags": {
+    "query": [
+      "sum by (namespace)(rate(container_network_receive_bytes_total[5m]))",
+      "sum by (namespace)(rate(container_network_transmit_bytes_total[5m]))"
+    ],
+    "name": ["rx_bytes_per_sec", "tx_bytes_per_sec"],
+    "start": "-1h",
+    "output": "markdown"
+  }
+}
+```
+
+Each query's results are labeled with the corresponding `name`. If `name` is omitted, auto-generated labels (q1, q2, ...) are used.
 
 ## Self-Learning Rule
 
@@ -116,21 +143,9 @@ metrics_read {
 }
 ```
 
-### With explicit output format
-
-```json
-metrics_read { "command": "query", "flags": { "query": "up", "output": "json" } }
-```
-
 ---
 
-## Pre-configured Queries (Presets)
-
-Use `metrics_help` with no command to list all available presets:
-
-```json
-metrics_help {}
-```
+## Using Presets
 
 Run a preset by name:
 
@@ -150,42 +165,17 @@ Filter preset results with `selector`:
 metrics_read { "command": "preset", "flags": { "name": "mtv_migration_pod_rx", "selector": "pod=~virt-v2v.*", "output": "markdown" } }
 ```
 
-Promote an instant preset to a range query by passing `start`:
+Promote any instant preset to a range query by passing `start`:
 
 ```json
 metrics_read { "command": "preset", "flags": { "name": "mtv_migration_status", "start": "-2h", "step": "30s", "output": "markdown" } }
 ```
 
-### Available presets
-
-| Preset | Type | Description |
-|--------|------|-------------|
-| `mtv_migration_status` | instant | Migration counts by status |
-| `mtv_plan_status` | instant | Plan-level status counts |
-| `mtv_data_transferred` | instant | Total bytes migrated per plan |
-| `mtv_net_throughput` | instant | Migration network throughput |
-| `mtv_storage_throughput` | instant | Migration storage throughput |
-| `mtv_migration_duration` | instant | Migration duration per plan (seconds) |
-| `mtv_migration_pod_rx` | instant | Migration pod receive rate (bytes/sec, top 20) |
-| `mtv_migration_pod_tx` | instant | Migration pod transmit rate (bytes/sec, top 20) |
-| `mtv_forklift_traffic` | instant | Forklift operator pod network traffic |
-| `mtv_namespace_network_rx` | instant | Top 10 namespaces by network receive rate |
-| `mtv_namespace_network_tx` | instant | Top 10 namespaces by network transmit rate |
-| `mtv_network_errors` | instant | Network errors + drops by namespace (top 10) |
-| `mtv_vmi_migrations_pending` | instant | KubeVirt VMI migrations in pending phase |
-| `mtv_vmi_migrations_running` | instant | KubeVirt VMI migrations in running phase |
-| `mtv_net_throughput_over_time` | range | Migration network throughput trend |
-| `mtv_storage_throughput_over_time` | range | Migration storage throughput trend |
-| `mtv_data_transferred_over_time` | range | Data transfer progress over time |
-| `mtv_migration_status_over_time` | range | Migration status counts over time |
-| `mtv_migration_pod_rx_over_time` | range | Migration pod receive rate trend (top 20) |
-| `mtv_namespace_network_rx_over_time` | range | Top 10 namespaces by RX rate trend |
+See the `metrics-query-cookbook` for the full preset catalog.
 
 ---
 
 ## PromQL Quick Reference
-
-Use this reference to compose custom queries with `metrics_read`.
 
 ### Selecting metrics
 
