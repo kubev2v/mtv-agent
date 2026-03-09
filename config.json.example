@@ -41,6 +41,6 @@
     "retryDelay": 2.0
   },
   "cache": {
-    "dir": ".cache/mtv-agent"
+    "dir": "~/.mtv-agent/cache"
   }
 }
