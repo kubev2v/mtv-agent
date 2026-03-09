@@ -16,6 +16,11 @@ dependencies = [
     "kubernetes",
 ]
 
+[project.urls]
+Homepage = "https://github.com/yaacov/mtv-agent"
+Repository = "https://github.com/yaacov/mtv-agent"
+Issues = "https://github.com/yaacov/mtv-agent/issues"
+
 [project.scripts]
 mtv-agent = "mtv_agent.cli:main"
 
