@@ -334,8 +334,8 @@ def _default_config_dict() -> dict:
                 "image": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest",
             },
         },
-        "skills": {"dir": "./skills", "maxActive": 3},
-        "playbooks": {"dir": "./playbooks"},
+        "skills": {"dir": "~/.mtv-agent/skills", "maxActive": 3},
+        "playbooks": {"dir": "~/.mtv-agent/playbooks"},
         "memory": {"maxTurns": 20, "ttlSeconds": 3600, "toolResultLimit": 4000},
         "agent": {
             "contextWindow": 30000,
@@ -343,7 +343,7 @@ def _default_config_dict() -> dict:
             "maxRetries": 2,
             "retryDelay": 2.0,
         },
-        "cache": {"dir": ".cache/mtv-agent"},
+        "cache": {"dir": "~/.mtv-agent/cache"},
     }
 
 

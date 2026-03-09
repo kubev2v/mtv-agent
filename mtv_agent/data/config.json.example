@@ -23,11 +23,11 @@
     }
   },
   "skills": {
-    "dir": "./skills",
+    "dir": "~/.mtv-agent/skills",
     "maxActive": 3
   },
   "playbooks": {
-    "dir": "./playbooks"
+    "dir": "~/.mtv-agent/playbooks"
   },
   "memory": {
     "maxTurns": 20,
@@ -41,6 +41,6 @@
     "retryDelay": 2.0
   },
   "cache": {
-    "dir": ".cache/mtv-agent"
+    "dir": "~/.mtv-agent/cache"
   }
 }

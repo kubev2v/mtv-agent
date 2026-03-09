@@ -173,10 +173,10 @@ def _default_skills_dir() -> Path:
 
 
 def _default_playbooks_dir() -> Path:
-    """Local ``playbooks/`` if it exists, otherwise bundled data."""
-    local = Path("playbooks")
-    if local.is_dir():
-        return local
+    """User dir if it exists, otherwise bundled data."""
+    user = Path.home() / ".mtv-agent" / "playbooks"
+    if user.is_dir():
+        return user
     return _bundled_data_path("playbooks")
 
 
@@ -202,7 +202,7 @@ class Settings(BaseSettings):
     max_retries: int = 2
     retry_delay: float = 2.0
 
-    cache_dir: Path = Path.home() / ".cache" / "mtv-agent"
+    cache_dir: Path = Path.home() / ".mtv-agent" / "cache"
 
     _json_values: ClassVar[dict[str, Any]] = _json_values
 
@@ -214,7 +214,7 @@ class Settings(BaseSettings):
             env_name = key.upper()
             if env_name not in os.environ:
                 if key in ("skills_dir", "playbooks_dir", "cache_dir"):
-                    value = Path(value)
+                    value = Path(value).expanduser()
                 setattr(self, key, value)
 
 
