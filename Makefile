@@ -57,9 +57,6 @@ lint-web:
 package: build-web
 	rm -rf mtv_agent/web_dist
 	cp -r web/dist mtv_agent/web_dist
-	rm -rf mtv_agent/data/skills mtv_agent/data/playbooks
-	cp -r skills mtv_agent/data/skills
-	cp -r playbooks mtv_agent/data/playbooks
 	uv build
 
 ## Show this help
