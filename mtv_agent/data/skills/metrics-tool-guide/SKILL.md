@@ -1,6 +1,6 @@
 ---
 name: metrics-tool-guide
-description: Guide for using the Prometheus/Thanos metrics tools: output rules, query syntax, filtering, discovery, and PromQL reference. Use when the user wants to check cluster metrics and you need to know how to call metrics_read and metrics_help.
+description: "Guide for using the Prometheus/Thanos metrics tools: output rules, query syntax, filtering, discovery, and PromQL reference. Use when the user wants to check cluster metrics and you need to know how to call metrics_read and metrics_help."
 ---
 
 # Metrics Tool Guide

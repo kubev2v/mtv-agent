@@ -39,7 +39,15 @@ class SkillsManager:
         if not directory.is_dir():
             return
         for skill_file in sorted(directory.glob("*/SKILL.md")):
-            skill = _parse_skill(skill_file)
+            try:
+                skill = _parse_skill(skill_file)
+            except Exception as exc:  # noqa: BLE001
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Skipping skill %s: %s", skill_file, exc
+                )
+                continue
             if skill:
                 self._skills[skill.name] = skill
 
