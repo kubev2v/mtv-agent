@@ -136,7 +136,7 @@ export class AgentApp extends LitElement {
 
   private async loadInitialData() {
     try {
-      const [status, skills, playbooks, mcpServers, tools, chatDtos] = await Promise.all([
+      const [status, skills, playbooks, initialMcpServers, initialTools, chatDtos] = await Promise.all([
         getStatus(),
         getSkills(),
         getPlaybooks(),
@@ -144,6 +144,8 @@ export class AgentApp extends LitElement {
         getTools(),
         getChats(),
       ]);
+      let mcpServers = initialMcpServers;
+      let tools = initialTools;
       const chatList: ChatSummary[] = chatDtos.map((c) => ({
         id: c.id,
         title: c.title,
