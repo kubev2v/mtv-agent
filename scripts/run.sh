@@ -15,21 +15,24 @@ done
 
 # ---------------------------------------------------------------------------
 # Prerequisites — resolve kube credentials (env vars > kubeconfig)
+#
+# Delegates to mtv_agent.lib.kubeconfig which handles bearer tokens,
+# exec credential plugins, OAuth, and falls back to kubectl create token.
 # ---------------------------------------------------------------------------
 
 if [[ -z "${KUBE_API_URL:-}" ]] || [[ -z "${KUBE_TOKEN:-}" ]]; then
-  KUBECONFIG_FILE="${KUBECONFIG:-$HOME/.kube/config}"
-  if [[ -f "$KUBECONFIG_FILE" ]]; then
-    echo "KUBE_API_URL or KUBE_TOKEN not set — reading from kubeconfig ($KUBECONFIG_FILE)..."
-    if [[ -z "${KUBE_API_URL:-}" ]]; then
-      KUBE_API_URL=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)
-    fi
-    if [[ -z "${KUBE_TOKEN:-}" ]]; then
-      KUBE_TOKEN=$(kubectl config view --minify -o jsonpath='{.users[0].user.token}' 2>/dev/null || true)
-    fi
-    if [[ -z "${KUBE_TOKEN:-}" ]]; then
-      KUBE_TOKEN=$(oc whoami -t 2>/dev/null || true)
-    fi
+  echo "KUBE_API_URL or KUBE_TOKEN not set — resolving from kubeconfig..."
+  CREDS=$(uv run python -c "
+from mtv_agent.lib.kubeconfig import resolve_kube_credentials
+url, tok = resolve_kube_credentials()
+if url and tok:
+    print(url)
+    print(tok)
+" 2>/dev/null) || CREDS=""
+
+  if [[ -n "$CREDS" ]]; then
+    KUBE_API_URL="${KUBE_API_URL:-$(echo "$CREDS" | head -n1)}"
+    KUBE_TOKEN="${KUBE_TOKEN:-$(echo "$CREDS" | tail -n1)}"
   fi
 fi
 
