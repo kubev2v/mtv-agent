@@ -143,3 +143,52 @@ def load_kubeconfig(
 
     logger.info("Using kubeconfig (server: %s)", api_url)
     return KubeCredentials(api_url=api_url, token=token)
+
+
+_resolved_creds: tuple[str, str] | None = None
+
+
+def set_kube_credentials(api_url: str, token: str) -> None:
+    """Store pre-resolved credentials for in-process use.
+
+    Called by the orchestrator/serve so that ``resolve_kube_credentials``
+    can find them without relying on environment variable mutations.
+    """
+    global _resolved_creds
+    _resolved_creds = (api_url, token)
+
+
+def resolve_kube_credentials(
+    kube_api_url: str | None = None,
+    kube_token: str | None = None,
+    kubeconfig: str | None = None,
+    kube_context: str | None = None,
+) -> tuple[str, str]:
+    """Resolve Kubernetes API URL and token.
+
+    Priority: explicit args > module-level state (``set_kube_credentials``)
+    > environment variables > kubeconfig file.
+    Returns ``(api_url, token)``; either may be empty if not found.
+    """
+    api_url = kube_api_url or ""
+    token = kube_token or ""
+    if api_url and token:
+        return api_url, token
+
+    if _resolved_creds:
+        api_url = api_url or _resolved_creds[0]
+        token = token or _resolved_creds[1]
+        if api_url and token:
+            return api_url, token
+
+    api_url = api_url or os.environ.get("KUBE_API_URL", "")
+    token = token or os.environ.get("KUBE_TOKEN", "")
+    if api_url and token:
+        return api_url, token
+
+    creds = load_kubeconfig(kubeconfig=kubeconfig, context=kube_context)
+    if creds:
+        api_url = api_url or creds.api_url
+        token = token or creds.token
+
+    return api_url, token

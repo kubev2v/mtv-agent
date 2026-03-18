@@ -15,7 +15,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from mtv_agent.config import _bundled_data_path, bundled_config_example
+import uvicorn
+
+from mtv_agent.config import _bundled_data_path, bundled_config_example, settings
+from mtv_agent.lib.kubeconfig import resolve_kube_credentials, set_kube_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -122,10 +125,12 @@ def _run_container(
     name: str,
     image: str,
     host_port: int,
-    kube_api_url: str,
-    kube_token: str,
 ) -> None:
-    """Start a single MCP container in detached mode."""
+    """Start a single MCP container in detached mode.
+
+    Credentials are **not** baked into the container; the API server
+    sends them as HTTP headers on each SSE connection instead.
+    """
     subprocess.run(
         [runtime, "rm", "-f", name],
         capture_output=True,
@@ -139,10 +144,6 @@ def _run_container(
         name,
         "-p",
         f"{host_port}:8080",
-        "-e",
-        f"MCP_KUBE_SERVER={kube_api_url}",
-        "-e",
-        f"MCP_KUBE_TOKEN={kube_token}",
         "-e",
         "MCP_KUBE_INSECURE=true",
         image,
@@ -170,11 +171,12 @@ def _resolve_image(config_key: str, raw_config: dict | None) -> str | None:
 
 def start_mcp_containers(
     runtime: str,
-    kube_api_url: str,
-    kube_token: str,
     raw_config: dict | None = None,
 ) -> list[str]:
     """Start MCP server containers, waiting for each to become ready.
+
+    Containers are started **without** Kubernetes credentials; the API
+    server passes them via HTTP headers on each SSE connection.
 
     Servers whose config entry has ``"image": null`` (or no image) are
     skipped -- they are assumed to be running remotely.
@@ -194,8 +196,6 @@ def start_mcp_containers(
             srv["name"],
             image,
             srv["host_port"],
-            kube_api_url,
-            kube_token,
         )
         _wait_for_port("localhost", srv["host_port"], srv["name"])
         names.append(srv["name"])
@@ -426,32 +426,6 @@ def _signal_handler(signum: int, frame) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_kube_credentials(
-    kube_api_url: str | None,
-    kube_token: str | None,
-    kubeconfig: str | None,
-    kube_context: str | None,
-) -> tuple[str, str]:
-    """Resolve Kubernetes API URL and token.
-
-    Priority: CLI flags > environment variables > kubeconfig file.
-    """
-    api_url = kube_api_url or os.environ.get("KUBE_API_URL", "")
-    token = kube_token or os.environ.get("KUBE_TOKEN", "")
-
-    if api_url and token:
-        return api_url, token
-
-    from mtv_agent.lib.kubeconfig import load_kubeconfig
-
-    creds = load_kubeconfig(kubeconfig=kubeconfig, context=kube_context)
-    if creds:
-        api_url = api_url or creds.api_url
-        token = token or creds.token
-
-    return api_url, token
-
-
 def start_all(
     *,
     with_cop: bool = False,
@@ -466,7 +440,7 @@ def start_all(
     kube_context: str | None = None,
 ) -> None:
     """Start MCP containers, optionally COP, then the API server (blocking)."""
-    api_url, token = _resolve_kube_credentials(
+    api_url, token = resolve_kube_credentials(
         kube_api_url, kube_token, kubeconfig, kube_context
     )
     if not api_url:
@@ -483,8 +457,6 @@ def start_all(
             file=sys.stderr,
         )
         sys.exit(1)
-    kube_api_url = api_url
-    kube_token = token
 
     rt = detect_runtime(runtime)
     _state.runtime = rt
@@ -501,11 +473,9 @@ def start_all(
         _wait_for_port("localhost", COP_PORT, "claude-openai-proxy")
 
     raw_cfg = _load_config_file(cfg)
-    _state.container_names = start_mcp_containers(
-        rt, kube_api_url, kube_token, raw_config=raw_cfg
-    )
+    _state.container_names = start_mcp_containers(rt, raw_config=raw_cfg)
 
-    serve(host=host, port=port, no_web=no_web)
+    serve(host=host, port=port, no_web=no_web, kube_api_url=api_url, kube_token=token)
 
 
 # ---------------------------------------------------------------------------
@@ -519,16 +489,28 @@ def serve(
     port: int | None = None,
     config_path: str | None = None,
     no_web: bool = False,
+    kube_api_url: str | None = None,
+    kube_token: str | None = None,
+    kubeconfig: str | None = None,
+    kube_context: str | None = None,
 ) -> None:
-    """Start just the FastAPI/Uvicorn server (blocking)."""
+    """Start just the FastAPI/Uvicorn server (blocking).
+
+    When kube credentials are supplied they are stored in module-level
+    state so the API server lifespan can inject them as MCP SSE auth
+    headers.
+    """
     if config_path:
         os.environ["CONFIG"] = config_path
     if no_web:
         os.environ["NO_WEB"] = "1"
 
-    import uvicorn
-
-    from mtv_agent.config import settings
+    if kube_api_url or kube_token or kubeconfig or kube_context:
+        api_url, token = resolve_kube_credentials(
+            kube_api_url, kube_token, kubeconfig, kube_context
+        )
+        if api_url or token:
+            set_kube_credentials(api_url, token)
 
     uvicorn.run(
         "mtv_agent.main:app",

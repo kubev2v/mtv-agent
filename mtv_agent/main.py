@@ -14,8 +14,15 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.responses import FileResponse
 
 from mtv_agent import agent
-from mtv_agent.config import config_path, load_mcp_servers, raw_config, settings
+from mtv_agent.config import (
+    config_path,
+    inject_kube_headers,
+    load_mcp_servers,
+    raw_config,
+    settings,
+)
 from mtv_agent.lib.chat_store import ChatStore
+from mtv_agent.lib.kubeconfig import resolve_kube_credentials
 from mtv_agent.lib.llm import LLMClient, discover_context_window, discover_model
 from mtv_agent.lib.mcp_manager import MCPManager
 from mtv_agent.lib.memory import ChatMemory
@@ -81,6 +88,23 @@ async def lifespan(app: FastAPI):
     mcp_servers = load_mcp_servers(raw_config)
     mcp_manager = MCPManager()
     if mcp_servers:
+        api_url, token = resolve_kube_credentials()
+        if api_url and token:
+            inject_kube_headers(mcp_servers, api_url, token)
+            logger.info("Injected kube auth headers for MCP SSE connections")
+        elif api_url or token:
+            inject_kube_headers(mcp_servers, api_url, token)
+            logger.warning(
+                "Partial kube credentials (url=%s, token=%s) -- "
+                "MCP servers may fall back to their own kubeconfig",
+                bool(api_url),
+                bool(token),
+            )
+        else:
+            logger.warning(
+                "No kube credentials found (KUBE_API_URL / KUBE_TOKEN / kubeconfig). "
+                "MCP servers will use their own credential fallback."
+            )
         await mcp_manager.connect_all(mcp_servers)
         connected = mcp_manager.server_names
         failed = [n for n in mcp_servers if n not in connected]

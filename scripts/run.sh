@@ -110,22 +110,16 @@ echo "Starting MCP servers ($RUNTIME)..."
 
 $RUNTIME run --rm -d --name "$MCP_MTV_NAME" \
   -p 8080:8080 \
-  -e MCP_KUBE_SERVER="$KUBE_API_URL" \
-  -e MCP_KUBE_TOKEN="$KUBE_TOKEN" \
   -e MCP_KUBE_INSECURE=true \
   quay.io/yaacov/kubectl-mtv-mcp-server:latest >/dev/null
 
 $RUNTIME run --rm -d --name "$MCP_METRICS_NAME" \
   -p 8081:8080 \
-  -e MCP_KUBE_SERVER="$KUBE_API_URL" \
-  -e MCP_KUBE_TOKEN="$KUBE_TOKEN" \
   -e MCP_KUBE_INSECURE=true \
   quay.io/yaacov/kubectl-metrics-mcp-server:latest >/dev/null
 
 $RUNTIME run --rm -d --name "$MCP_DEBUG_NAME" \
   -p 8082:8080 \
-  -e MCP_KUBE_SERVER="$KUBE_API_URL" \
-  -e MCP_KUBE_TOKEN="$KUBE_TOKEN" \
   -e MCP_KUBE_INSECURE=true \
   quay.io/yaacov/kubectl-debug-queries-mcp-server:latest >/dev/null
 
@@ -163,4 +157,7 @@ fi
 echo "Starting API server..."
 echo "  API server         -> http://localhost:8000"
 echo ""
-CONFIG=./config.json uv run python -m mtv_agent serve
+CONFIG=./config.json \
+  uv run python -m mtv_agent serve \
+  --kube-api-url "$KUBE_API_URL" \
+  --kube-token "$KUBE_TOKEN"
