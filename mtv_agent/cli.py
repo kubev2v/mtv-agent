@@ -31,7 +31,16 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     """Start only the API server."""
     from mtv_agent.orchestrator import serve
 
-    serve(host=args.host, port=args.port, config_path=args.config, no_web=args.no_web)
+    serve(
+        host=args.host,
+        port=args.port,
+        config_path=args.config,
+        no_web=args.no_web,
+        kube_api_url=args.kube_api_url,
+        kube_token=args.kube_token,
+        kubeconfig=args.kubeconfig,
+        kube_context=args.kube_context,
+    )
 
 
 def _cmd_stop(args: argparse.Namespace) -> None:
@@ -65,6 +74,30 @@ def _cmd_config(args: argparse.Namespace) -> None:
     from mtv_agent.orchestrator import get_default_config_text
 
     sys.stdout.write(get_default_config_text())
+
+
+def _add_kube_flags(parser: argparse.ArgumentParser) -> None:
+    """Add the four Kubernetes credential flags shared by ``start`` and ``serve``."""
+    parser.add_argument(
+        "--kube-api-url",
+        default=None,
+        help="Kubernetes API server URL (overrides env and kubeconfig)",
+    )
+    parser.add_argument(
+        "--kube-token",
+        default=None,
+        help="Kubernetes bearer token (overrides env and kubeconfig)",
+    )
+    parser.add_argument(
+        "--kubeconfig",
+        default=None,
+        help="Path to kubeconfig file (default: $KUBECONFIG or ~/.kube/config)",
+    )
+    parser.add_argument(
+        "--kube-context",
+        default=None,
+        help="Kubeconfig context to use (default: current-context)",
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -102,26 +135,7 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Do not serve the static web UI (for frontend dev with Vite)",
     )
-    p_start.add_argument(
-        "--kube-api-url",
-        default=None,
-        help="Kubernetes API server URL (overrides env and kubeconfig)",
-    )
-    p_start.add_argument(
-        "--kube-token",
-        default=None,
-        help="Kubernetes bearer token (overrides env and kubeconfig)",
-    )
-    p_start.add_argument(
-        "--kubeconfig",
-        default=None,
-        help="Path to kubeconfig file (default: $KUBECONFIG or ~/.kube/config)",
-    )
-    p_start.add_argument(
-        "--kube-context",
-        default=None,
-        help="Kubeconfig context to use (default: current-context)",
-    )
+    _add_kube_flags(p_start)
     p_start.set_defaults(func=_cmd_start)
 
     # -- serve ---------------------------------------------------------------
@@ -137,6 +151,7 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Do not serve the static web UI (for frontend dev with Vite)",
     )
+    _add_kube_flags(p_serve)
     p_serve.set_defaults(func=_cmd_serve)
 
     # -- stop ----------------------------------------------------------------

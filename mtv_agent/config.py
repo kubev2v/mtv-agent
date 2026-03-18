@@ -127,6 +127,37 @@ class MCPServerConfig:
     headers: dict[str, str] = field(default_factory=dict)
 
 
+def build_kube_auth_headers(api_url: str, token: str) -> dict[str, str]:
+    """Build HTTP headers for MCP SSE auth from Kubernetes credentials.
+
+    Returns an empty dict when both values are blank.
+    """
+    headers: dict[str, str] = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if api_url:
+        headers["X-Kubernetes-Server"] = api_url
+    return headers
+
+
+def inject_kube_headers(
+    servers: dict[str, "MCPServerConfig"],
+    api_url: str,
+    token: str,
+) -> None:
+    """Merge auto-resolved kube auth headers into every MCP server config.
+
+    Headers already present in a server's config (e.g. set explicitly in
+    ``config.json``) are **not** overwritten.
+    """
+    auto_headers = build_kube_auth_headers(api_url, token)
+    if not auto_headers:
+        return
+    for cfg in servers.values():
+        for key, value in auto_headers.items():
+            cfg.headers.setdefault(key, value)
+
+
 def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
     """Extract MCP SSE server entries from a parsed config dict.
 
