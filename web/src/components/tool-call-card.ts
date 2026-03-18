@@ -154,13 +154,41 @@ export class ToolCallCard extends LitElement {
 
     .approval-bar {
       display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: 8px;
       padding: 10px 12px;
       border-top: 1px solid var(--border-secondary);
     }
 
-    .approval-bar span {
+    .deny-reason-input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 10px;
+      font-size: var(--font-size-sm);
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--bg-code);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-xs);
+      outline: none;
+      transition: border-color var(--transition-fast);
+    }
+
+    .deny-reason-input::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    .deny-reason-input:focus {
+      border-color: var(--accent-info);
+    }
+
+    .approval-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .approval-actions span {
       flex: 1;
       font-size: var(--font-size-sm);
       color: var(--text-secondary);
@@ -233,6 +261,7 @@ export class ToolCallCard extends LitElement {
   @state() private expanded = false;
   @state() private pinned = false;
   @state() private graphPinned = false;
+  @state() private denyReasonInput = "";
 
   private unsubscribe?: () => void;
   private _idCacheKey: string | undefined;
@@ -328,14 +357,16 @@ export class ToolCallCard extends LitElement {
   private async deny() {
     const sid = appState.state.sessionId;
     if (!sid) return;
+    const reason = this.denyReasonInput.trim() || "denied by user";
+    this.denyReasonInput = "";
     appState.updateLastToolCall((tc) => ({
       ...tc,
       pending: false,
       denied: true,
-      denyReason: "denied by user",
+      denyReason: reason,
     }));
     try {
-      await sendApproval(sid, false, "denied by user");
+      await sendApproval(sid, false, reason);
     } catch {
       // best-effort
     }
@@ -524,9 +555,20 @@ export class ToolCallCard extends LitElement {
         ${e.pending
           ? html`
               <div class="approval-bar">
-                <span>Approve this tool call?</span>
-                <button class="deny-btn" @click=${this.deny}>Deny</button>
-                <button class="approve-btn" @click=${this.approve}>Approve</button>
+                <input
+                  class="deny-reason-input"
+                  type="text"
+                  placeholder="Reason for denial (optional)"
+                  .value=${this.denyReasonInput}
+                  @input=${(ev: InputEvent) => {
+                    this.denyReasonInput = (ev.target as HTMLInputElement).value;
+                  }}
+                />
+                <div class="approval-actions">
+                  <span>Approve this tool call?</span>
+                  <button class="deny-btn" @click=${this.deny}>Deny</button>
+                  <button class="approve-btn" @click=${this.approve}>Approve</button>
+                </div>
               </div>
             `
           : nothing}
