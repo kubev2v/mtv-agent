@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from mtv_agent.config import MCPServerConfig
@@ -127,9 +128,17 @@ class MCPManager:
         ]
 
     async def disconnect_all(self) -> None:
-        """Tear down every SSE connection."""
-        for client in self._clients.values():
-            await client.disconnect()
+        """Tear down every SSE connection (in parallel)."""
+        if self._clients:
+            results = await asyncio.gather(
+                *(c.disconnect() for c in self._clients.values()),
+                return_exceptions=True,
+            )
+            for name, result in zip(self._clients, results):
+                if isinstance(result, Exception):
+                    logger.warning(
+                        "Error disconnecting MCP server %s: %s", name, result
+                    )
         self._clients.clear()
         self._tool_map.clear()
 

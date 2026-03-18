@@ -47,6 +47,8 @@ _approval_queues: dict[str, asyncio.Queue[tuple[bool, str | None]]] = {}
 # Cancel events keyed by session ID.
 _cancel_events: dict[str, asyncio.Event] = {}
 
+SHUTDOWN_DRAIN_TIMEOUT = 2.0
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -172,7 +174,19 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
+    for evt in _cancel_events.values():
+        evt.set()
+    if _cancel_events:
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + SHUTDOWN_DRAIN_TIMEOUT
+        while _cancel_events and loop.time() < deadline:
+            await asyncio.sleep(0.1)
+        if _cancel_events:
+            logger.warning(
+                "Shutdown drain timed out with %d active session(s)",
+                len(_cancel_events),
+            )
+
     await mcp_manager.disconnect_all()
 
 
