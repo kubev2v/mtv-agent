@@ -15,6 +15,7 @@ dependencies = [
     "claude-openai-proxy",
     "kubernetes",
     "markdownify",
+    "beautifulsoup4",
 ]
 
 [project.urls]

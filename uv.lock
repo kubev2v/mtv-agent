@@ -601,6 +601,7 @@ name = "mtv-agent"
 version = "0.1.12"
 source = { editable = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "claude-openai-proxy" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -621,6 +622,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4" },
     { name = "claude-openai-proxy" },
     { name = "fastapi" },
     { name = "httpx" },

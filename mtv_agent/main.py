@@ -146,7 +146,10 @@ async def lifespan(app: FastAPI):
 
     # --- Registry ------------------------------------------------------------
     registry = ToolRegistry(
-        mcp=mcp_manager, skills=skills, bash_timeout=settings.bash_timeout
+        mcp=mcp_manager,
+        skills=skills,
+        bash_timeout=settings.bash_timeout,
+        cache_dir=settings.cache_dir,
     )
     await registry.refresh()
     tool_count = len(registry.get_tool_definitions())

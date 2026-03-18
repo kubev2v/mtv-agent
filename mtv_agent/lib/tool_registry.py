@@ -1,6 +1,7 @@
 """Unified tool registry that combines MCP tools and built-ins."""
 
 import logging
+from pathlib import Path
 
 from mtv_agent.lib import bash_tool, web_tool
 from mtv_agent.lib.mcp_manager import MCPManager
@@ -26,11 +27,16 @@ class ToolRegistry:
     """Single entry point for tool definitions and execution."""
 
     def __init__(
-        self, mcp: MCPManager | None, skills: SkillsManager, bash_timeout: int = 360
+        self,
+        mcp: MCPManager | None,
+        skills: SkillsManager,
+        bash_timeout: int = 360,
+        cache_dir: str | Path | None = None,
     ) -> None:
         self._mcp = mcp
         self._skills = skills
         self._bash_timeout = bash_timeout
+        self._cache_dir = cache_dir
         self._mcp_tools: list[dict] = []
 
     @property
@@ -54,7 +60,9 @@ class ToolRegistry:
             )
 
         if name == web_tool.TOOL_NAME:
-            return await web_tool.run(arguments.get("url", ""))
+            return await web_tool.run(
+                arguments.get("url", ""), cache_dir=self._cache_dir
+            )
 
         if self._mcp:
             error = _check_flags(arguments)
