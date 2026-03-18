@@ -26,7 +26,7 @@ class ToolRegistry:
     """Single entry point for tool definitions and execution."""
 
     def __init__(
-        self, mcp: MCPManager | None, skills: SkillsManager, bash_timeout: int = 120
+        self, mcp: MCPManager | None, skills: SkillsManager, bash_timeout: int = 360
     ) -> None:
         self._mcp = mcp
         self._skills = skills

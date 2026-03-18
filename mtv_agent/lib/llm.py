@@ -9,7 +9,7 @@ from openai.types.chat import ChatCompletion
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_LLM_TIMEOUT = 120  # seconds
+DEFAULT_LLM_TIMEOUT = 360  # seconds
 
 
 class LLMClient:

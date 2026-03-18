@@ -8,7 +8,7 @@ from mtv_agent.lib.text_utils import DEFAULT_TRUNCATE_LIMIT, truncate
 logger = logging.getLogger(__name__)
 
 TOOL_NAME = "bash"
-DEFAULT_TIMEOUT_SECONDS = 120
+DEFAULT_TIMEOUT_SECONDS = 360
 
 BASH_TRUNCATE_HINT = (
     "Try filtering or limiting results, e.g. grep, --selector, "
@@ -60,6 +60,7 @@ async def run(command: str, timeout: int = DEFAULT_TIMEOUT_SECONDS) -> str:
         return truncate(output, DEFAULT_TRUNCATE_LIMIT, BASH_TRUNCATE_HINT)
     except asyncio.TimeoutError:
         proc.kill()
+        await proc.wait()
         return f"[error] Command timed out after {timeout}s"
     except Exception as exc:
         return f"[error] {exc}"

@@ -249,9 +249,9 @@ class Settings(BaseSettings):
     max_retries: int = 2
     retry_delay: float = 2.0
 
-    llm_timeout: int = 120
-    mcp_tool_timeout: int = 120
-    bash_timeout: int = 120
+    llm_timeout: int = 360
+    mcp_tool_timeout: int = 360
+    bash_timeout: int = 360
 
     cache_dir: Path = Path.home() / ".mtv-agent" / "cache"
 
