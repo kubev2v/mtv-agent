@@ -38,3 +38,6 @@ artifacts = ["mtv_agent/web_dist/**"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["mtv_agent"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"config.json.example" = "mtv_agent/data/config.json.example"
