@@ -2,7 +2,7 @@
 
 import logging
 
-from mtv_agent.lib import bash_tool
+from mtv_agent.lib import bash_tool, web_tool
 from mtv_agent.lib.mcp_manager import MCPManager
 from mtv_agent.lib.skills import SkillsManager
 
@@ -44,7 +44,7 @@ class ToolRegistry:
 
     def get_tool_definitions(self) -> list[dict]:
         """Return the combined list of tools for the LLM (no skills)."""
-        return [bash_tool.TOOL_DEFINITION] + self._mcp_tools
+        return [bash_tool.TOOL_DEFINITION, web_tool.TOOL_DEFINITION] + self._mcp_tools
 
     async def execute_tool(self, name: str, arguments: dict) -> str:
         """Route a tool call to the right backend and return the result."""
@@ -52,6 +52,9 @@ class ToolRegistry:
             return await bash_tool.run(
                 arguments.get("command", ""), timeout=self._bash_timeout
             )
+
+        if name == web_tool.TOOL_NAME:
+            return await web_tool.run(arguments.get("url", ""))
 
         if self._mcp:
             error = _check_flags(arguments)

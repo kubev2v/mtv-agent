@@ -6,6 +6,7 @@ import { metricsReadHandlers } from "./metrics-read.js";
 import { metricsHelpHandlers } from "./metrics-help.js";
 import { debugReadHandlers } from "./debug-read.js";
 import { debugHelpHandlers } from "./debug-help.js";
+import { webFetchHandlers } from "./web-fetch.js";
 
 export const allHandlers: ToolHandler[] = [
   ...mtvReadHandlers,
@@ -15,4 +16,5 @@ export const allHandlers: ToolHandler[] = [
   ...metricsHelpHandlers,
   ...debugReadHandlers,
   ...debugHelpHandlers,
+  ...webFetchHandlers,
 ];
