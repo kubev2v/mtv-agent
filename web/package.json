@@ -19,7 +19,7 @@
     "hammerjs": "^2.0.8",
     "highlight.js": "^11.11.0",
     "lit": "^3.2.0",
-    "marked": "^15.0.0",
+    "marked": "^17.0.0",
     "marked-highlight": "^2.2.3"
   },
   "devDependencies": {
@@ -28,6 +28,6 @@
     "prettier": "^3.8.1",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.56.1",
-    "vite": "^6.0.0"
+    "vite": "^8.0.0"
   }
 }

@@ -14,10 +14,14 @@ export default defineConfig({
     target: "es2021",
     rollupOptions: {
       output: {
-        manualChunks: {
-              lit: ["lit"],
-              markdown: ["marked", "marked-highlight", "dompurify"],
-          hljs: ["highlight.js/lib/core"],
+        manualChunks(id) {
+          if (id.includes("node_modules/lit")) return "lit";
+          if (
+            id.includes("node_modules/marked") ||
+            id.includes("node_modules/dompurify")
+          )
+            return "markdown";
+          if (id.includes("node_modules/highlight.js")) return "hljs";
         },
       },
     },
