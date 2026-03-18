@@ -188,8 +188,16 @@ class MCPClient:
             if self._stop is not None:
                 self._stop.set()
             try:
-                await self._task
-            except BaseException:
-                pass
+                await asyncio.wait_for(self._task, timeout=3.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                self._task.cancel()
+                try:
+                    await self._task
+                except (asyncio.CancelledError, Exception):
+                    pass
+                # Propagate if disconnect() itself was cancelled by the caller.
+                current = asyncio.current_task()
+                if current is not None and current.cancelling() > 0:
+                    raise asyncio.CancelledError()
         self._task = None
         self._session = None

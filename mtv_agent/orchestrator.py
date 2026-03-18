@@ -206,7 +206,7 @@ def stop_containers(runtime: str, names: list[str]) -> None:
     """Stop and remove the given containers."""
     for name in names:
         subprocess.run(
-            [runtime, "stop", name],
+            [runtime, "stop", "--time=2", name],
             capture_output=True,
         )
 
@@ -519,4 +519,5 @@ def serve(
         "mtv_agent.main:app",
         host=host or settings.server_host,
         port=port or settings.server_port,
+        timeout_graceful_shutdown=8,
     )
