@@ -2,6 +2,7 @@ export type ServerName =
   | "user-kubectl-mtv"
   | "user-kubectl-metrics"
   | "user-kubectl-debug-queries"
+  | "builtin"
   | "unknown";
 
 export type ToolCategory =
@@ -18,6 +19,7 @@ export type ToolCategory =
   | "events"
   | "help"
   | "write"
+  | "web-fetch"
   | "unknown";
 
 export type RendererType = "table" | "graph" | "markdown" | "text" | "log" | "raw";
