@@ -26,7 +26,7 @@ _CONNECTION_ERRORS = (
 )
 
 MAX_RECONNECT_ATTEMPTS = 3
-TOOL_CALL_TIMEOUT = 120  # seconds
+DEFAULT_TOOL_CALL_TIMEOUT = 120  # seconds
 
 
 class MCPClient:
@@ -39,7 +39,8 @@ class MCPClient:
     is torn down from a request handler.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tool_timeout: int = DEFAULT_TOOL_CALL_TIMEOUT) -> None:
+        self._tool_timeout = tool_timeout
         self._session: ClientSession | None = None
         self._url: str | None = None
         self._headers: dict[str, str] | None = None
@@ -150,7 +151,7 @@ class MCPClient:
                 continue
             try:
                 t0 = time.perf_counter()
-                async with asyncio.timeout(TOOL_CALL_TIMEOUT):
+                async with asyncio.timeout(self._tool_timeout):
                     result = await self._session.call_tool(name, arguments)
                 elapsed = time.perf_counter() - t0
                 logger.debug("MCP call_tool(%s) round-trip: %.3fs", name, elapsed)

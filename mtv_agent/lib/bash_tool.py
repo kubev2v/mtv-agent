@@ -8,7 +8,7 @@ from mtv_agent.lib.text_utils import DEFAULT_TRUNCATE_LIMIT, truncate
 logger = logging.getLogger(__name__)
 
 TOOL_NAME = "bash"
-TIMEOUT_SECONDS = 120
+DEFAULT_TIMEOUT_SECONDS = 120
 
 BASH_TRUNCATE_HINT = (
     "Try filtering or limiting results, e.g. grep, --selector, "
@@ -40,7 +40,7 @@ TOOL_DEFINITION = {
 }
 
 
-async def run(command: str) -> str:
+async def run(command: str, timeout: int = DEFAULT_TIMEOUT_SECONDS) -> str:
     """Execute *command* in a bash shell and return combined output."""
     logger.info("bash: %s", command)
     try:
@@ -51,7 +51,7 @@ async def run(command: str) -> str:
             shell=True,
             executable="/bin/bash",
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=TIMEOUT_SECONDS)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         output = stdout.decode(errors="replace").strip()
         if proc.returncode != 0:
             output = f"[exit code {proc.returncode}]\n{output}"
@@ -60,6 +60,6 @@ async def run(command: str) -> str:
         return truncate(output, DEFAULT_TRUNCATE_LIMIT, BASH_TRUNCATE_HINT)
     except asyncio.TimeoutError:
         proc.kill()
-        return f"[error] Command timed out after {TIMEOUT_SECONDS}s"
+        return f"[error] Command timed out after {timeout}s"
     except Exception as exc:
         return f"[error] {exc}"

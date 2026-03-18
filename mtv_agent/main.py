@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from starlette.responses import FileResponse
@@ -44,6 +44,9 @@ playbooks_manager: PlaybooksManager
 # Pending approval queues keyed by session ID.
 _approval_queues: dict[str, asyncio.Queue[tuple[bool, str | None]]] = {}
 
+# Cancel events keyed by session ID.
+_cancel_events: dict[str, asyncio.Event] = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,6 +75,7 @@ async def lifespan(app: FastAPI):
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
         model=model,
+        timeout=settings.llm_timeout,
     )
 
     # --- Context window ------------------------------------------------------
@@ -86,7 +90,7 @@ async def lifespan(app: FastAPI):
 
     # --- MCP tools (optional) ------------------------------------------------
     mcp_servers = load_mcp_servers(raw_config)
-    mcp_manager = MCPManager()
+    mcp_manager = MCPManager(tool_timeout=settings.mcp_tool_timeout)
     if mcp_servers:
         api_url, token = resolve_kube_credentials()
         if api_url and token:
@@ -141,7 +145,9 @@ async def lifespan(app: FastAPI):
     )
 
     # --- Registry ------------------------------------------------------------
-    registry = ToolRegistry(mcp=mcp_manager, skills=skills)
+    registry = ToolRegistry(
+        mcp=mcp_manager, skills=skills, bash_timeout=settings.bash_timeout
+    )
     await registry.refresh()
     tool_count = len(registry.get_tool_definitions())
     logger.info("Tool registry ready (%d tool(s))", tool_count)
@@ -188,26 +194,44 @@ class ApproveRequest(BaseModel):
 
 
 @api.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest, raw_request: Request) -> ChatResponse:
     """Non-streaming: returns the complete answer as JSON."""
     sid = request.session_id or uuid4().hex
     history = memory.load(sid)
-    answer, turn_messages = await agent.run(
-        request.message,
-        registry,
-        llm,
-        history=history,
-        initial_skills=request.skills,
-        max_active_skills=settings.max_active_skills,
-        context=request.context,
-        max_iterations=settings.max_iterations,
-        max_retries=settings.max_retries,
-        retry_delay=settings.retry_delay,
-        tool_result_limit=settings.memory_tool_result_limit,
-    )
-    memory.append(sid, turn_messages)
-    chat_store.save_chat(sid, memory.load(sid))
-    return ChatResponse(response=answer, session_id=sid)
+
+    cancel = asyncio.Event()
+    _cancel_events[sid] = cancel
+
+    async def _disconnect_watcher() -> None:
+        while not cancel.is_set():
+            if await raw_request.is_disconnected():
+                cancel.set()
+                return
+            await asyncio.sleep(1)
+
+    watcher = asyncio.create_task(_disconnect_watcher())
+    try:
+        answer, turn_messages = await agent.run(
+            request.message,
+            registry,
+            llm,
+            history=history,
+            initial_skills=request.skills,
+            max_active_skills=settings.max_active_skills,
+            context=request.context,
+            max_iterations=settings.max_iterations,
+            max_retries=settings.max_retries,
+            retry_delay=settings.retry_delay,
+            tool_result_limit=settings.memory_tool_result_limit,
+            cancel=cancel,
+        )
+        memory.append(sid, turn_messages)
+        chat_store.save_chat(sid, memory.load(sid))
+        return ChatResponse(response=answer, session_id=sid)
+    finally:
+        cancel.set()
+        watcher.cancel()
+        _cancel_events.pop(sid, None)
 
 
 @api.post("/chat/stream")
@@ -222,6 +246,9 @@ async def chat_stream(
     """
     sid = request.session_id or uuid4().hex
     history = memory.load(sid)
+
+    cancel = asyncio.Event()
+    _cancel_events[sid] = cancel
 
     approval_queue: asyncio.Queue[tuple[bool, str | None]] | None = None
     if approve:
@@ -255,6 +282,7 @@ async def chat_stream(
                 max_retries=settings.max_retries,
                 retry_delay=settings.retry_delay,
                 tool_result_limit=settings.memory_tool_result_limit,
+                cancel=cancel,
             )
             async for event in stream:
                 if event["event"] == "checkpoint":
@@ -269,6 +297,8 @@ async def chat_stream(
             memory.append(sid, turn_messages)
             chat_store.save_chat(sid, memory.load(sid))
         finally:
+            cancel.set()
+            _cancel_events.pop(sid, None)
             _approval_queues.pop(sid, None)
             if not turn_messages and last_checkpoint:
                 last_checkpoint.append(
@@ -287,6 +317,16 @@ async def approve_tool(session_id: str, request: ApproveRequest):
     if not queue:
         return {"error": "unknown session"}
     await queue.put((request.approved, request.reason))
+    return {"ok": True}
+
+
+@api.post("/chat/{session_id}/cancel")
+async def cancel_chat(session_id: str):
+    """Cancel a running agent loop for the given session."""
+    cancel = _cancel_events.get(session_id)
+    if not cancel:
+        return {"error": "no active session"}
+    cancel.set()
     return {"ok": True}
 
 
@@ -431,6 +471,7 @@ async def switch_model(request: ModelRequest):
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
         model=request.model,
+        timeout=settings.llm_timeout,
     )
 
     ctx = await discover_context_window(

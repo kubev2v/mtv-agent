@@ -342,6 +342,9 @@ def _default_config_dict() -> dict:
             "maxIterations": 20,
             "maxRetries": 2,
             "retryDelay": 2.0,
+            "llmTimeout": 120,
+            "mcpToolTimeout": 120,
+            "bashTimeout": 120,
         },
         "cache": {"dir": "~/.mtv-agent/cache"},
     }

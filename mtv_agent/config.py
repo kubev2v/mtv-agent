@@ -24,8 +24,18 @@ def _bundled_data_path(subpath: str) -> Path:
 
 
 def bundled_config_example() -> Path:
-    """Return the path to the bundled ``config.json.example``."""
-    return _bundled_data_path("config.json.example")
+    """Return the path to ``config.json.example``.
+
+    Checks the bundled data dir first (pip-installed package), then
+    falls back to the repo root (development from source).
+    """
+    bundled = _bundled_data_path("config.json.example")
+    if bundled.is_file():
+        return bundled
+    repo_root = _PACKAGE_DIR.parent / "config.json.example"
+    if repo_root.is_file():
+        return repo_root
+    return bundled
 
 
 _CONFIG_SEARCH_PATHS = [
@@ -106,6 +116,12 @@ def _flatten_config(data: dict[str, Any]) -> dict[str, Any]:
         flat["max_retries"] = ag["maxRetries"]
     if ag.get("retryDelay") is not None:
         flat["retry_delay"] = ag["retryDelay"]
+    if ag.get("llmTimeout") is not None:
+        flat["llm_timeout"] = ag["llmTimeout"]
+    if ag.get("mcpToolTimeout") is not None:
+        flat["mcp_tool_timeout"] = ag["mcpToolTimeout"]
+    if ag.get("bashTimeout") is not None:
+        flat["bash_timeout"] = ag["bashTimeout"]
 
     cache = data.get("cache", {})
     if cache.get("dir") is not None:
@@ -232,6 +248,10 @@ class Settings(BaseSettings):
     max_iterations: int = 20
     max_retries: int = 2
     retry_delay: float = 2.0
+
+    llm_timeout: int = 120
+    mcp_tool_timeout: int = 120
+    bash_timeout: int = 120
 
     cache_dir: Path = Path.home() / ".mtv-agent" / "cache"
 

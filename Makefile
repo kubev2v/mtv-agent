@@ -57,6 +57,7 @@ lint-web:
 package: build-web
 	rm -rf mtv_agent/web_dist
 	cp -r web/dist mtv_agent/web_dist
+	cp config.json.example mtv_agent/data/config.json.example
 	uv build
 
 ## Show this help
