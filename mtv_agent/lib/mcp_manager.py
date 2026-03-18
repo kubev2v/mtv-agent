@@ -5,7 +5,11 @@ from __future__ import annotations
 import logging
 
 from mtv_agent.config import MCPServerConfig
-from mtv_agent.lib.mcp_client import MCPClient, _CONNECTION_ERRORS
+from mtv_agent.lib.mcp_client import (
+    DEFAULT_TOOL_CALL_TIMEOUT,
+    MCPClient,
+    _CONNECTION_ERRORS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +22,8 @@ class MCPManager:
     without providing URLs.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tool_timeout: int = DEFAULT_TOOL_CALL_TIMEOUT) -> None:
+        self._tool_timeout = tool_timeout
         self._configs: dict[str, MCPServerConfig] = {}
         self._clients: dict[str, MCPClient] = {}
         self._tool_map: dict[str, str] = {}
@@ -36,7 +41,7 @@ class MCPManager:
         """
         self.load_configs(servers)
         for name, cfg in servers.items():
-            client = MCPClient()
+            client = MCPClient(tool_timeout=self._tool_timeout)
             try:
                 await client.connect(cfg.url, headers=cfg.headers or None)
                 self._clients[name] = client
@@ -96,7 +101,7 @@ class MCPManager:
             return False
         if name in self._clients:
             await self._clients[name].disconnect()
-        client = MCPClient()
+        client = MCPClient(tool_timeout=self._tool_timeout)
         await client.connect(cfg.url, headers=cfg.headers or None)
         self._clients[name] = client
         return True

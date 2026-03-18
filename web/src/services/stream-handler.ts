@@ -163,6 +163,22 @@ export function executeStreamChat(
         }));
       },
 
+      onCancelled: (content) => {
+        const elapsed = (performance.now() - startTime) / 1000;
+        appState.updateLastAssistant((m) => ({
+          ...m,
+          content: content || m.content || "",
+          thinking: false,
+          cancelled: true,
+        }));
+        appState.update({
+          isStreaming: false,
+          streamElapsed: elapsed,
+          activeChatId: appState.state.sessionId,
+        });
+        refreshChatList();
+      },
+
       onDone: (content) => {
         const elapsed = (performance.now() - startTime) / 1000;
         appState.updateLastAssistant((m) => ({

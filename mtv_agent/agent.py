@@ -83,6 +83,7 @@ async def run_stream(
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
     tool_result_limit: int = DEFAULT_MEMORY_TOOL_RESULT_LIMIT,
+    cancel: asyncio.Event | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Run the tool loop, yielding events as they happen.
 
@@ -98,6 +99,7 @@ async def run_stream(
         {"event": "tool_denied", "name": "..."}
         {"event": "tool_result", "name": "...", "result": "..."}
         {"event": "content",     "content": "..."}
+        {"event": "cancelled",   "content": "..."}
         {"event": "done",        "content": "...", "messages": [...]}
     """
     skills = registry.skills
@@ -142,6 +144,13 @@ async def run_stream(
     tools = base_tools or None
 
     for _ in range(max_iterations):
+        if cancel and cancel.is_set():
+            msg = "Request cancelled."
+            turn = _prepare_turn_messages(messages, turn_start, msg, tool_result_limit)
+            yield {"event": "cancelled", "content": msg}
+            yield {"event": "done", "content": msg, "messages": turn}
+            return
+
         yield {"event": "thinking"}
 
         response = None
@@ -298,6 +307,7 @@ async def run(
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
     tool_result_limit: int = DEFAULT_MEMORY_TOOL_RESULT_LIMIT,
+    cancel: asyncio.Event | None = None,
 ) -> tuple[str, list[dict]]:
     """Non-streaming wrapper -- returns (answer, turn_messages)."""
     content = ""
@@ -314,6 +324,7 @@ async def run(
         max_retries=max_retries,
         retry_delay=retry_delay,
         tool_result_limit=tool_result_limit,
+        cancel=cancel,
     ):
         if event["event"] == "content":
             content = event["content"]

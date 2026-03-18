@@ -17,6 +17,7 @@ export interface StreamCallbacks {
   onContextSet?: (key: string, value: string) => void;
   onContextUnset?: (key: string) => void;
   onContent?: (content: string) => void;
+  onCancelled?: (content: string) => void;
   onDone?: (content: string) => void;
   onError?: (error: Error) => void;
 }
@@ -140,6 +141,9 @@ function dispatchEvent(event: string, data: Record<string, unknown>, cb: StreamC
       break;
     case "content":
       cb.onContent?.(data.content as string);
+      break;
+    case "cancelled":
+      cb.onCancelled?.(data.content as string);
       break;
     case "done":
       cb.onDone?.(data.content as string);

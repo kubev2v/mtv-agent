@@ -18,6 +18,8 @@ import {
   getChats,
   getChat,
   deleteChat as apiDeleteChat,
+  cancelChat,
+  cancelChatBeacon,
 } from "../services/api-client.js";
 import type { ChatSummary } from "../state/app-state.js";
 import { executeStreamChat } from "../services/stream-handler.js";
@@ -123,6 +125,7 @@ export class AgentApp extends LitElement {
     this.addEventListener("load-chat", this.onLoadChat as unknown as EventListener);
     this.addEventListener("delete-chat", this.onDeleteChat as unknown as EventListener);
     this.addEventListener("pin-card", this.onPinCard as EventListener);
+    window.addEventListener("beforeunload", this.onBeforeUnload);
     this.loadInitialData();
   }
 
@@ -134,6 +137,7 @@ export class AgentApp extends LitElement {
     this.removeEventListener("load-chat", this.onLoadChat as unknown as EventListener);
     this.removeEventListener("delete-chat", this.onDeleteChat as unknown as EventListener);
     this.removeEventListener("pin-card", this.onPinCard as EventListener);
+    window.removeEventListener("beforeunload", this.onBeforeUnload);
   }
 
   private async loadInitialData() {
@@ -218,6 +222,15 @@ export class AgentApp extends LitElement {
     }
   }
 
+  private onBeforeUnload = () => {
+    if (appState.state.isStreaming) {
+      const sid = appState.state.sessionId;
+      if (sid) {
+        cancelChatBeacon(sid);
+      }
+    }
+  };
+
   private onSendMessage = (e: CustomEvent<{ message: string }>) => {
     this.handleSend(e.detail.message);
   };
@@ -228,6 +241,12 @@ export class AgentApp extends LitElement {
 
   private handleCancel() {
     if (!this.abortController) return;
+
+    const sid = appState.state.sessionId;
+    if (sid) {
+      cancelChat(sid).catch(() => {});
+    }
+
     this.abortController.abort();
     this.abortController = undefined;
 
@@ -241,7 +260,9 @@ export class AgentApp extends LitElement {
   }
 
   private onLoadChat = async (e: CustomEvent<{ chatId: string }>) => {
-    if (appState.state.isStreaming) return;
+    if (appState.state.isStreaming) {
+      this.handleCancel();
+    }
     const { chatId } = e.detail;
     try {
       const record = await getChat(chatId);

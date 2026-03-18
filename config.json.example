@@ -38,7 +38,10 @@
     "contextWindow": 30000,
     "maxIterations": 20,
     "maxRetries": 2,
-    "retryDelay": 2.0
+    "retryDelay": 2.0,
+    "llmTimeout": 360,
+    "mcpToolTimeout": 360,
+    "bashTimeout": 360
   },
   "cache": {
     "dir": "~/.mtv-agent/cache"

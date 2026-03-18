@@ -174,3 +174,19 @@ export async function sendApproval(
     body: JSON.stringify(body),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Session cancellation
+// ---------------------------------------------------------------------------
+
+export async function cancelChat(sessionId: string): Promise<void> {
+  await request(`/chat/${sessionId}/cancel`, { method: "POST" });
+}
+
+/**
+ * Fire-and-forget cancel via sendBeacon (works during page unload).
+ */
+export function cancelChatBeacon(sessionId: string): void {
+  const url = `${BASE}/chat/${sessionId}/cancel`;
+  navigator.sendBeacon(url);
+}

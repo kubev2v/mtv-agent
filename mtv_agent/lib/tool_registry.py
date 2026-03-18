@@ -25,9 +25,12 @@ def _check_flags(arguments: dict) -> str | None:
 class ToolRegistry:
     """Single entry point for tool definitions and execution."""
 
-    def __init__(self, mcp: MCPManager | None, skills: SkillsManager) -> None:
+    def __init__(
+        self, mcp: MCPManager | None, skills: SkillsManager, bash_timeout: int = 360
+    ) -> None:
         self._mcp = mcp
         self._skills = skills
+        self._bash_timeout = bash_timeout
         self._mcp_tools: list[dict] = []
 
     @property
@@ -46,7 +49,9 @@ class ToolRegistry:
     async def execute_tool(self, name: str, arguments: dict) -> str:
         """Route a tool call to the right backend and return the result."""
         if name == bash_tool.TOOL_NAME:
-            return await bash_tool.run(arguments.get("command", ""))
+            return await bash_tool.run(
+                arguments.get("command", ""), timeout=self._bash_timeout
+            )
 
         if self._mcp:
             error = _check_flags(arguments)
