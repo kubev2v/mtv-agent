@@ -5,7 +5,7 @@ with a tool loop, MCP tool integration, and markdown-based skills and playbooks.
 
 <div align="center">
   <img src="docs/mtv-agent-v0.1.0.png" alt="mtv-agent web UI" width="800" />
-  <p><em>mtv-agent v0.1.0 — chat interface with live migration metrics and plan status</em></p>
+  <p><em>mtv-agent — chat interface with live migration metrics and plan status</em></p>
 </div>
 
 ## Quick start
@@ -80,6 +80,8 @@ mtv-agent start  [--with-cop] [--runtime docker|podman] [--host HOST] [--port PO
                  [--kube-api-url URL] [--kube-token TOKEN]
                  [--kubeconfig PATH] [--kube-context NAME]
 mtv-agent serve  [--host HOST] [--port PORT] [--config PATH] [--no-web]
+                 [--kube-api-url URL] [--kube-token TOKEN]
+                 [--kubeconfig PATH] [--kube-context NAME]
 mtv-agent stop
 mtv-agent config
 ```
@@ -152,7 +154,13 @@ mtv-agent config
     "contextWindow": 30000,
     "maxIterations": 20,
     "maxRetries": 2,
-    "retryDelay": 2.0
+    "retryDelay": 2.0,
+    "llmTimeout": 360,
+    "mcpToolTimeout": 360,
+    "bashTimeout": 360
+  },
+  "cache": {
+    "dir": "~/.mtv-agent/cache"
   }
 }
 ```
@@ -175,6 +183,11 @@ Every value can be overridden by an environment variable (no prefix needed):
 | `MAX_ITERATIONS` | `agent.maxIterations` | `20` | Maximum tool-loop iterations |
 | `MAX_RETRIES` | `agent.maxRetries` | `2` | LLM request retries on failure |
 | `RETRY_DELAY` | `agent.retryDelay` | `2.0` | Seconds between LLM retries |
+| `LLM_TIMEOUT` | `agent.llmTimeout` | `360` | LLM request timeout in seconds |
+| `MCP_TOOL_TIMEOUT` | `agent.mcpToolTimeout` | `360` | MCP tool execution timeout in seconds |
+| `BASH_TIMEOUT` | `agent.bashTimeout` | `360` | Bash tool execution timeout in seconds |
+| `MEMORY_TOOL_RESULT_LIMIT` | `memory.toolResultLimit` | `4000` | Max characters kept per tool result |
+| `CACHE_DIR` | `cache.dir` | `~/.mtv-agent/cache` | Directory for persistent caches |
 
 ## Architecture
 
@@ -261,6 +274,42 @@ Or deny with an optional reason:
 
 ```json
 {"approved": false, "reason": "too dangerous"}
+```
+
+### `POST /api/chat/{session_id}/cancel`
+
+Cancel a running agent loop for the given session.
+
+### Chat history
+
+### `GET /api/chats`
+
+Lists all saved chats with `id`, `title`, and `updated_at`, newest first.
+
+### `GET /api/chats/{chat_id}`
+
+Load a saved chat with full messages.
+
+### `DELETE /api/chats/{chat_id}`
+
+Delete a saved chat.
+
+### `PUT /api/chats/{chat_id}/title`
+
+Rename a saved chat: `{"title": "new name"}`.
+
+### Tools
+
+### `GET /api/tools`
+
+Lists available tools with `name`, short `description`, and `parameters` schema.
+
+### `POST /api/tools/{tool_name}`
+
+Execute a registered tool directly, bypassing the LLM agent loop.
+
+```json
+{"arguments": {"command": "get plan"}}
 ```
 
 ### `GET /api/status`
