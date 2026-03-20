@@ -1,12 +1,12 @@
 # Development
 
 This guide is for contributors working from a git checkout of the
-[mtv-agent](https://github.com/kubev2v/mtv-agent) repository.
+[mtv-agent](https://github.com/yaacov/mtv-agent) repository.
 
 ## Setup from source
 
 ```bash
-git clone https://github.com/kubev2v/mtv-agent.git
+git clone https://github.com/yaacov/mtv-agent.git
 cd mtv-agent
 uv sync --extra dev
 ```
@@ -118,17 +118,21 @@ mtv-agent/
 │   ├── lib/                 # Internal libraries
 │   │   ├── bash_tool.py     # Built-in bash tool for shell commands
 │   │   ├── chat_store.py    # Persistent chat storage (JSON files)
+│   │   ├── html_to_md.py    # HTML-to-markdown conversion
 │   │   ├── kubeconfig.py    # Kubeconfig credential extraction (via k8s client)
 │   │   ├── llm.py           # OpenAI-compatible LLM client
 │   │   ├── mcp_client.py    # MCP SSE client
 │   │   ├── mcp_manager.py   # Multi-MCP server manager
+│   │   ├── md_sections.py   # Markdown section utilities
 │   │   ├── memory.py        # In-memory conversation history
 │   │   ├── playbooks.py     # Playbook markdown loader
 │   │   ├── skills.py        # Skill markdown loader
 │   │   ├── system_prompt.py # System prompt builder
 │   │   ├── text_utils.py    # Truncation, frontmatter parsing
 │   │   ├── tool_registry.py # Unified registry (bash + MCP tools)
-│   │   └── virtual_tools.py # select_skill, set_context tools
+│   │   ├── virtual_tools.py # select_skill, set_context tools
+│   │   ├── web_cache.py     # Web content cache
+│   │   └── web_tool.py      # Built-in web fetch tool
 │   └── data/                # Bundled data (included in pip package)
 │       ├── config.json.example
 │       ├── skills/
@@ -142,8 +146,6 @@ mtv-agent/
 │   ├── quickstart.md        # Zero-to-running walkthrough
 │   ├── llm-backends.md      # LM Studio and Claude setup guide
 │   └── development.md       # This file
-├── skills/                  # Dev skills (used by make run)
-├── playbooks/               # Dev playbooks (used by make run)
 ├── scripts/run.sh           # Dev launcher script
 ├── Makefile                 # Dev and build targets
 └── pyproject.toml           # Package metadata and dependencies

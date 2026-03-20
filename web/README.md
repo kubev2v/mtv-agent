@@ -142,7 +142,13 @@ which lays out the sidebar, chat area, and detail pane.
 | ModelSelector | `<model-selector>` | Dropdown to hot-swap the active LLM model |
 | McpManager | `<mcp-manager>` | Connect/disconnect MCP servers |
 | ToolPolicyEditor | `<tool-policy-editor>` | Set per-tool approval policies (auto, ask, deny) |
+| SkillSelector | `<skill-selector>` | Skill activation panel |
+| ContextEditor | `<context-editor>` | Key-value context editor |
 | ThemePicker | `<theme-picker>` | Cycle through available themes |
+| ThinkingIndicator | `<thinking-indicator>` | Streaming "thinking" animation |
+| TextRenderer | `<text-renderer>` | Plain-text and table renderer |
+| CardSearchBar | `<card-search-bar>` | Search bar for pinned cards |
+| ResizeHandle | `<resize-handle>` | Draggable pane resize handle |
 
 ## Themes
 
