@@ -30,7 +30,8 @@ web/bun.lock
 # Bundled web dist (build artifact for pip package)
 mtv_agent/web_dist/
 
-# Bundled config example (copied from repo root during packaging)
+# Bundled config examples (force-included by hatch during packaging)
 mtv_agent/data/config.json.example
+mtv_agent/data/mcp.json.example
 
 .cache/
