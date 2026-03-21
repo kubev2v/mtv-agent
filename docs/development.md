@@ -147,7 +147,6 @@ mtv-agent/
 │   ├── quickstart.md        # Zero-to-running walkthrough
 │   ├── llm-backends.md      # LM Studio and Claude setup guide
 │   └── development.md       # This file
-├── scripts/run.sh           # Thin wrapper around mtv-agent start
 ├── Makefile                 # Dev and build targets
 └── pyproject.toml           # Package metadata and dependencies
 ```

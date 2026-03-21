@@ -303,12 +303,17 @@ def _build_settings(json_values: dict[str, Any]) -> "Settings":
 
         def model_post_init(self, __context: Any) -> None:
             """Apply JSON config values for fields not already set by env vars."""
-            for key, value in self._json_values.items():
-                env_name = key.upper()
-                if env_name not in os.environ:
-                    if key in ("skills_dir", "playbooks_dir", "cache_dir"):
-                        value = Path(value).expanduser()
-                    setattr(self, key, value)
+            try:
+                for key, value in self._json_values.items():
+                    env_name = key.upper()
+                    if env_name not in os.environ:
+                        if key in ("skills_dir", "playbooks_dir", "cache_dir"):
+                            value = Path(value).expanduser()
+                        setattr(self, key, value)
+            except Exception as exc:
+                raise RuntimeError(
+                    "Failed initializing Settings from JSON overrides"
+                ) from exc
 
     return _S()
 
