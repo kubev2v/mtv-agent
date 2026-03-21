@@ -1,3 +1,8 @@
 """mtv-agent -- AI agent for MTV/Forklift VM migrations."""
 
-__version__ = "0.1.15"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("mtv-agent")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
