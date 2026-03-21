@@ -41,7 +41,7 @@ Then use the Make targets:
 ```bash
 make run        # MCP containers + API server (uses local LLM)
 make run-cop    # same, but also starts claude-openai-proxy
-make build-web  # build the web UI into web/dist/ (served automatically)
+make web-build  # build the web UI into web/dist/ (served automatically)
 make stop       # stop MCP containers and claude-openai-proxy
 ```
 
@@ -56,13 +56,13 @@ alongside the API server. Run them in two terminals:
 
 ```bash
 # Terminal 1 -- API server without static file serving
-make dev
+make run-dev
 
 # Terminal 2 -- Vite dev server on port 5173
-make dev-web
+make web-dev
 ```
 
-`make dev` passes `--no-web` so the API server does not serve static files,
+`make run-dev` passes `--no-web` so the API server does not serve static files,
 avoiding conflicts with Vite. The Vite dev server proxies `/api` requests
 to the API server on port 8000 automatically.
 
@@ -72,16 +72,18 @@ to the API server on port 8000 automatically.
 |---|---|
 | `make run` | Start MCP containers + API server via `mtv-agent start` |
 | `make run-cop` | Same as `run` but also starts claude-openai-proxy |
-| `make dev` | Start MCP containers + API server with `--no-web` (for frontend dev) |
+| `make run-dev` | Start MCP containers + API server with `--no-web` (for frontend dev) |
 | `make serve` | Start only the API server (no containers) |
-| `make build-web` | Build the web UI into `web/dist/` |
-| `make dev-web` | Start the Vite dev server for the web UI |
 | `make stop` | Stop MCP containers and claude-openai-proxy |
+| `make web-build` | Build the web UI into `web/dist/` |
+| `make web-dev` | Start the Vite dev server for the web UI |
 | `make format` | Auto-format Python code with ruff |
 | `make format-web` | Auto-format web code with prettier |
 | `make lint` | Lint Python code with ruff |
 | `make lint-web` | Lint web code with eslint + prettier |
 | `make package` | Build the pip-distributable wheel (includes web UI) |
+| `make clean` | Remove build artifacts |
+| `make clean-all` | Remove build artifacts, caches, and node_modules |
 | `make help` | Show all targets |
 
 ## Linting and formatting
@@ -100,7 +102,7 @@ make format-web # prettier auto-fix
 make package
 ```
 
-This runs `make build-web` first, copies `web/dist/` into `mtv_agent/web_dist/`,
+This runs `make web-build` first, copies `web/dist/` into `mtv_agent/web_dist/`,
 then runs `python -m build` to produce a distributable wheel in `dist/`.
 
 ## Project structure

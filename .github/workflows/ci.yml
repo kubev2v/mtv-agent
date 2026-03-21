@@ -44,4 +44,4 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: make build-web
+      - run: make web-build
