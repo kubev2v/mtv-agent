@@ -303,7 +303,7 @@ async def run_stream(
                         for t in pending:
                             t.cancel()
                         await asyncio.gather(*pending, return_exceptions=True)
-                        if cancel.is_set() and not tool_task.done():
+                        if tool_task.cancelled() or cancel.is_set():
                             result = "Tool cancelled."
                         else:
                             result = tool_task.result()
@@ -368,6 +368,8 @@ async def run(
     ):
         if event["event"] == "content":
             content = event["content"]
+        elif event["event"] == "cancelled":
+            content = event.get("content", "Request cancelled.")
         elif event["event"] == "done":
             turn_messages = event.get("messages", [])
     return content, turn_messages

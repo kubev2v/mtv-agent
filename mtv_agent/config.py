@@ -274,6 +274,8 @@ def _build_settings(json_values: dict[str, Any]) -> "Settings":
         llm_api_key: str = "lm-studio"
         llm_model: str | None = None
 
+        # Binds to all interfaces for containerized deployments.
+        # For local dev, override with SERVER_HOST=127.0.0.1.
         server_host: str = "0.0.0.0"
         server_port: int = 8000
 
@@ -299,7 +301,7 @@ def _build_settings(json_values: dict[str, Any]) -> "Settings":
 
         _json_values: ClassVar[dict[str, Any]] = json_values
 
-        model_config = {"env_prefix": ""}
+        model_config = {"env_prefix": "", "validate_assignment": True}
 
         def model_post_init(self, __context: Any) -> None:
             """Apply JSON config values for fields not already set by env vars."""
@@ -318,7 +320,11 @@ def _build_settings(json_values: dict[str, Any]) -> "Settings":
     return _S()
 
 
-# Keep Settings as a top-level name for type annotations elsewhere.
+# Settings is a top-level name used solely for type annotations.
+# Each _build_settings() call generates a fresh inner _S class, so the
+# runtime type of the module-level `settings` instance may differ from this
+# one.  That is intentional -- this alias exists so that external code can
+# write ``settings: Settings`` without importing a private symbol.
 Settings = type(_build_settings({}))
 
 # ---------------------------------------------------------------------------
