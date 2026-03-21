@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import json
 import logging
 import os
 import shutil
@@ -14,6 +13,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 import uvicorn
 
@@ -28,37 +28,34 @@ from mtv_agent.lib.kubeconfig import resolve_kube_credentials, set_kube_credenti
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# MCP container definitions
+# Overridable defaults (MTV_AGENT_* environment variables)
 # ---------------------------------------------------------------------------
 
-_DEFAULT_IMAGES = {
-    "kubectl-mtv": "quay.io/yaacov/kubectl-mtv-mcp-server:latest",
-    "kubectl-metrics": "quay.io/yaacov/kubectl-metrics-mcp-server:latest",
-    "kubectl-debug-queries": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest",
-}
 
-_MCP_SERVERS = [
-    {
-        "name": "mtv-agent-mcp-mtv",
-        "host_port": 8080,
-        "config_key": "kubectl-mtv",
-        "sse_path": "/sse",
-    },
-    {
-        "name": "mtv-agent-mcp-metrics",
-        "host_port": 8081,
-        "config_key": "kubectl-metrics",
-        "sse_path": "/sse",
-    },
-    {
-        "name": "mtv-agent-mcp-debug-queries",
-        "host_port": 8082,
-        "config_key": "kubectl-debug-queries",
-        "sse_path": "/sse",
-    },
-]
+def _validate_port(env_name: str, default: int) -> int:
+    """Read an env var as a TCP port number (1–65535) with a friendly error."""
+    raw = os.environ.get(env_name)
+    if raw is None:
+        return default
+    try:
+        port = int(raw)
+    except ValueError:
+        raise SystemExit(f"Error: {env_name}={raw!r} is not a valid integer") from None
+    if not 1 <= port <= 65535:
+        raise SystemExit(f"Error: {env_name}={port} is outside the valid range 1–65535")
+    return port
 
-COP_PORT = 1234
+
+_COP_PORT = _validate_port("MTV_AGENT_COP_PORT", 1234)
+_CONTAINER_PORT = _validate_port("MTV_AGENT_CONTAINER_PORT", 8080)
+_KUBE_INSECURE = os.environ.get("MTV_AGENT_KUBE_INSECURE", "true")
+
+_CONTAINER_PREFIX = "mtv-agent-mcp"
+
+
+def _container_name(key: str) -> str:
+    """Derive a container name from an ``mcpServers`` config key."""
+    return f"{_CONTAINER_PREFIX}-{key}"
 
 
 @dataclass
@@ -148,30 +145,13 @@ def _run_container(
         "--name",
         name,
         "-p",
-        f"{host_port}:8080",
+        f"{host_port}:{_CONTAINER_PORT}",
         "-e",
-        "MCP_KUBE_INSECURE=true",
+        f"MCP_KUBE_INSECURE={_KUBE_INSECURE}",
         image,
     ]
     subprocess.run(cmd, capture_output=True, check=True)
     logger.info("  %s -> http://localhost:%d/sse", name, host_port)
-
-
-def _resolve_image(config_key: str, mcp_raw: dict | None) -> str | None:
-    """Return the container image for *config_key*, or ``None`` to skip.
-
-    Resolution order:
-    1. ``mcpServers.<config_key>.image`` in the MCP config (explicit).
-       A ``null`` / empty value means "no container" -- the server is remote.
-    2. If the config has no ``mcpServers`` section at all (or no entry for
-       this key), fall back to the hardcoded default.
-    """
-    if mcp_raw:
-        mcp_section = mcp_raw.get("mcpServers", {})
-        entry = mcp_section.get(config_key, {})
-        if isinstance(entry, dict) and "image" in entry:
-            return entry["image"] or None
-    return _DEFAULT_IMAGES[config_key]
 
 
 def start_mcp_containers(
@@ -180,30 +160,41 @@ def start_mcp_containers(
 ) -> list[str]:
     """Start MCP server containers, waiting for each to become ready.
 
-    Containers are started **without** Kubernetes credentials; the API
-    server passes them via HTTP headers on each SSE connection.
+    Iterates over ``mcpServers`` in *mcp_raw* (the parsed ``mcp.json``).
+    Entries with an ``image`` key get a local container; entries without
+    are assumed to be running remotely and are skipped.
 
-    Servers whose config entry has ``"image": null`` (or no image) are
-    skipped -- they are assumed to be running remotely.
+    The host port is parsed from the entry's ``url`` field.
     """
+    if not mcp_raw:
+        return []
+    mcp_section = mcp_raw.get("mcpServers", {})
+    if not isinstance(mcp_section, dict):
+        return []
+
     logger.info("Starting MCP servers (%s)...", runtime)
     names: list[str] = []
-    for srv in _MCP_SERVERS:
-        image = _resolve_image(srv["config_key"], mcp_raw)
-        if not image:
-            logger.info(
-                "  %s -- no image configured, skipping (remote)",
-                srv["config_key"],
-            )
-            continue
-        _run_container(
-            runtime,
-            srv["name"],
-            image,
-            srv["host_port"],
-        )
-        _wait_for_port("localhost", srv["host_port"], srv["name"])
-        names.append(srv["name"])
+    try:
+        for key, entry in mcp_section.items():
+            if not isinstance(entry, dict):
+                continue
+            image = entry.get("image")
+            if not image:
+                logger.info("  %s -- no image configured, skipping (remote)", key)
+                continue
+            url = entry.get("url", "")
+            host_port = urlparse(url).port or _CONTAINER_PORT
+            name = _container_name(key)
+            _run_container(runtime, name, image, host_port)
+            names.append(name)
+            if not _wait_for_port("localhost", host_port, name):
+                raise RuntimeError(
+                    f"MCP server {name!r} failed to become ready on port {host_port}"
+                )
+    except Exception:
+        if names:
+            stop_containers(runtime, names)
+        raise
     return names
 
 
@@ -218,12 +209,14 @@ def stop_containers(runtime: str, names: list[str]) -> None:
 
 def stop_mcp_containers_any_runtime() -> None:
     """Best-effort stop of MCP containers using any available runtime."""
+    mcp_section = config.mcp_raw_config.get("mcpServers", {})
+    names = [_container_name(key) for key in mcp_section]
     for candidate in ("docker", "podman"):
         if not shutil.which(candidate):
             continue
-        for srv in _MCP_SERVERS:
+        for name in names:
             subprocess.run(
-                [candidate, "stop", srv["name"]],
+                [candidate, "stop", name],
                 capture_output=True,
             )
 
@@ -235,15 +228,15 @@ def stop_mcp_containers_any_runtime() -> None:
 
 def start_cop() -> subprocess.Popen:
     """Start claude-openai-proxy as a background subprocess."""
-    logger.info("Starting claude-openai-proxy on port %d...", COP_PORT)
-    env = {**os.environ, "PORT": str(COP_PORT)}
+    logger.info("Starting claude-openai-proxy on port %d...", _COP_PORT)
+    env = {**os.environ, "PORT": str(_COP_PORT)}
     proc = subprocess.Popen(
         [sys.executable, "-m", "claude_openai_proxy"],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    logger.info("  claude-openai-proxy -> http://localhost:%d", COP_PORT)
+    logger.info("  claude-openai-proxy -> http://localhost:%d", _COP_PORT)
     return proc
 
 
@@ -267,126 +260,49 @@ def stop_cop_by_name() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Config generation
+# Config helpers
 # ---------------------------------------------------------------------------
-
-
-def generate_agent_config(config_path: str | None = None) -> str:
-    """Ensure an agent config file exists. Returns the path used.
-
-    If *config_path* is given and exists, it is returned as-is.
-    Otherwise the standard search paths are checked.  When no config
-    file is found anywhere, a default is created at
-    ``~/.mtv-agent/config.json``.
-    """
-    if config_path:
-        p = Path(config_path).expanduser()
-        if p.is_file():
-            return str(p)
-
-    for candidate in (Path("config.json"), Path.home() / ".mtv-agent" / "config.json"):
-        if candidate.expanduser().is_file():
-            return str(candidate.expanduser())
-
-    example = bundled_config_example()
-    if example.is_file():
-        data = json.loads(example.read_text(encoding="utf-8"))
-    else:
-        data = _default_config_dict()
-
-    persistent = Path.home() / ".mtv-agent" / "config.json"
-    persistent.parent.mkdir(parents=True, exist_ok=True)
-    persistent.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    logger.info("Created default config: %s", persistent)
-    return str(persistent)
-
-
-def generate_mcp_config(mcp_config_path: str | None = None) -> str:
-    """Ensure an MCP config file exists. Returns the path used.
-
-    If *mcp_config_path* is given and exists, it is returned as-is.
-    Otherwise the standard search paths are checked.  When no MCP config
-    file is found anywhere, a default is created at
-    ``~/.mtv-agent/mcp.json``.
-    """
-    if mcp_config_path:
-        p = Path(mcp_config_path).expanduser()
-        if p.is_file():
-            return str(p)
-
-    for candidate in (Path("mcp.json"), Path.home() / ".mtv-agent" / "mcp.json"):
-        if candidate.expanduser().is_file():
-            return str(candidate.expanduser())
-
-    example = bundled_mcp_example()
-    if example.is_file():
-        data = json.loads(example.read_text(encoding="utf-8"))
-    else:
-        data = _default_mcp_dict()
-
-    persistent = Path.home() / ".mtv-agent" / "mcp.json"
-    persistent.parent.mkdir(parents=True, exist_ok=True)
-    persistent.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    logger.info("Created default MCP config: %s", persistent)
-    return str(persistent)
 
 
 def get_default_config_text() -> str:
     """Return the default agent config JSON as a formatted string."""
-    example = bundled_config_example()
-    if example.is_file():
-        return example.read_text(encoding="utf-8")
-    return json.dumps(_default_config_dict(), indent=2) + "\n"
+    return bundled_config_example().read_text(encoding="utf-8")
 
 
-def _default_config_dict() -> dict:
-    return {
-        "llm": {
-            "baseUrl": "http://localhost:1234/v1",
-            "apiKey": "lm-studio",
-            "model": None,
-        },
-        "server": {"host": "0.0.0.0", "port": 8000},
-        "skills": {"dir": "~/.mtv-agent/skills", "maxActive": 3},
-        "playbooks": {"dir": "~/.mtv-agent/playbooks"},
-        "memory": {"maxTurns": 20, "ttlSeconds": 3600, "toolResultLimit": 4000},
-        "agent": {
-            "contextWindow": 30000,
-            "maxIterations": 20,
-            "maxRetries": 2,
-            "retryDelay": 2.0,
-            "llmTimeout": 360,
-            "mcpToolTimeout": 360,
-            "bashTimeout": 360,
-        },
-        "cache": {"dir": "~/.mtv-agent/cache"},
-    }
+def _safe_reload_config(
+    config_path_arg: str | None = None,
+    mcp_config_path_arg: str | None = None,
+) -> None:
+    """Reload config, converting missing-file errors into clean CLI exits."""
+    try:
+        config.reload(
+            config_path_arg=config_path_arg,
+            mcp_config_path_arg=mcp_config_path_arg,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
-def _default_mcp_dict() -> dict:
-    return {
-        "mcpServers": {
-            "kubectl-mtv": {
-                "url": "http://localhost:8080/sse",
-                "image": "quay.io/yaacov/kubectl-mtv-mcp-server:latest",
-            },
-            "kubectl-metrics": {
-                "url": "http://localhost:8081/sse",
-                "image": "quay.io/yaacov/kubectl-metrics-mcp-server:latest",
-            },
-            "kubectl-debug-queries": {
-                "url": "http://localhost:8082/sse",
-                "image": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest",
-            },
-        },
-    }
+def _require_config_files() -> None:
+    """Exit with an error if either config file is missing."""
+    if not config.config_path:
+        print(
+            "Error: config.json not found.\n  Run 'mtv-agent init' to create one.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not config.mcp_config_path:
+        print(
+            "Error: mcp.json not found.\n  Run 'mtv-agent init' to create one.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
 # Workspace initialisation
 # ---------------------------------------------------------------------------
-
-_INIT_DIR = Path.home() / ".mtv-agent"
 
 
 def init_workspace(target: Path | None = None, *, force: bool = False) -> Path:
@@ -395,7 +311,7 @@ def init_workspace(target: Path | None = None, *, force: bool = False) -> Path:
     Returns the directory that was initialised.  Files that already exist
     are skipped unless *force* is ``True``.
     """
-    dest = (target or _INIT_DIR).expanduser().resolve()
+    dest = (target or config.USER_DIR).expanduser().resolve()
     dest.mkdir(parents=True, exist_ok=True)
 
     created: list[str] = []
@@ -510,14 +426,21 @@ def start_all(
     signal.signal(signal.SIGTERM, _signal_handler)
     atexit.register(_cleanup)
 
-    cfg = generate_agent_config(config_path)
-    mcp_cfg = generate_mcp_config(mcp_config_path)
-
-    config.reload(config_path_arg=cfg, mcp_config_path_arg=mcp_cfg)
+    _safe_reload_config(
+        config_path_arg=config_path, mcp_config_path_arg=mcp_config_path
+    )
+    _require_config_files()
 
     if with_cop:
         _state.cop_proc = start_cop()
-        _wait_for_port("localhost", COP_PORT, "claude-openai-proxy")
+        if not _wait_for_port("localhost", _COP_PORT, "claude-openai-proxy"):
+            stop_cop(_state.cop_proc)
+            _state.cop_proc = None
+            print(
+                "Error: claude-openai-proxy did not become ready.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     _state.container_names = start_mcp_containers(rt, mcp_raw=config.mcp_raw_config)
 
@@ -548,10 +471,11 @@ def serve(
     headers.
     """
     if config_path or mcp_config_path:
-        config.reload(
+        _safe_reload_config(
             config_path_arg=config_path,
             mcp_config_path_arg=mcp_config_path,
         )
+    _require_config_files()
 
     if no_web:
         config.no_web = True
