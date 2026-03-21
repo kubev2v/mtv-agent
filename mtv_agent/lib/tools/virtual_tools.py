@@ -1,6 +1,6 @@
 """Virtual tool definitions handled inside the agent loop (not executed externally)."""
 
-from mtv_agent.lib.skills import SkillsManager
+from mtv_agent.lib.content.skills import SkillsManager
 
 SELECT_SKILL_TOOL_NAME = "select_skill"
 SET_CONTEXT_TOOL_NAME = "set_context"
