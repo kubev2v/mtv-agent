@@ -1,17 +1,17 @@
 .DEFAULT_GOAL := help
 .PHONY: run run-cop dev serve build-web dev-web stop format format-web lint lint-web package help
 
-## Run the full stack via scripts/run.sh (dev)
+## Run the full stack (MCP containers + API server)
 run:
-	@scripts/run.sh
+	@uv run python -m mtv_agent start
 
-## Run with COP via scripts/run.sh (dev)
+## Run the full stack with claude-openai-proxy
 run-cop:
-	@scripts/run.sh --with-cop
+	@uv run python -m mtv_agent start --with-cop
 
-## Run API server with --no-web for frontend dev
+## Run the full stack without static web UI (for frontend dev with Vite)
 dev:
-	@NO_WEB=1 scripts/run.sh
+	@uv run python -m mtv_agent start --no-web
 
 ## Start only the API server (pip-installed entrypoint)
 serve:
@@ -27,13 +27,7 @@ dev-web:
 
 ## Stop all MCP containers and proxy
 stop:
-	@echo "Stopping MCP containers..."
-	@docker stop mtv-agent-mcp-mtv 2>/dev/null || podman stop mtv-agent-mcp-mtv 2>/dev/null || true
-	@docker stop mtv-agent-mcp-metrics 2>/dev/null || podman stop mtv-agent-mcp-metrics 2>/dev/null || true
-	@docker stop mtv-agent-mcp-debug-queries 2>/dev/null || podman stop mtv-agent-mcp-debug-queries 2>/dev/null || true
-	@echo "Stopping claude-openai-proxy (if running)..."
-	@pkill -f 'claude_openai_proxy' 2>/dev/null || true
-	@echo "Done."
+	@uv run python -m mtv_agent stop
 
 ## Format Python code with ruff
 format:

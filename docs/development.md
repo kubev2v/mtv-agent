@@ -62,7 +62,7 @@ make dev
 make dev-web
 ```
 
-`make dev` sets `NO_WEB=1` so the API server does not serve static files,
+`make dev` passes `--no-web` so the API server does not serve static files,
 avoiding conflicts with Vite. The Vite dev server proxies `/api` requests
 to the API server on port 8000 automatically.
 
@@ -70,7 +70,7 @@ to the API server on port 8000 automatically.
 
 | Target | Description |
 |---|---|
-| `make run` | Start MCP containers + API server via `scripts/run.sh` |
+| `make run` | Start MCP containers + API server via `mtv-agent start` |
 | `make run-cop` | Same as `run` but also starts claude-openai-proxy |
 | `make dev` | Start MCP containers + API server with `--no-web` (for frontend dev) |
 | `make serve` | Start only the API server (no containers) |
@@ -146,7 +146,7 @@ mtv-agent/
 │   ├── quickstart.md        # Zero-to-running walkthrough
 │   ├── llm-backends.md      # LM Studio and Claude setup guide
 │   └── development.md       # This file
-├── scripts/run.sh           # Dev launcher script
+├── scripts/run.sh           # Thin wrapper around mtv-agent start
 ├── Makefile                 # Dev and build targets
 └── pyproject.toml           # Package metadata and dependencies
 ```
