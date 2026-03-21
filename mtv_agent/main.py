@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
@@ -14,13 +13,8 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.responses import FileResponse
 
 from mtv_agent import agent
-from mtv_agent.config import (
-    config_path,
-    inject_kube_headers,
-    load_mcp_servers,
-    raw_config,
-    settings,
-)
+import mtv_agent.config as config
+from mtv_agent.config import inject_kube_headers, load_mcp_servers
 from mtv_agent.lib.chat_store import ChatStore
 from mtv_agent.lib.kubeconfig import resolve_kube_credentials
 from mtv_agent.lib.llm import LLMClient, discover_context_window, discover_model
@@ -56,43 +50,48 @@ async def lifespan(app: FastAPI):
     global registry, llm, memory, chat_store, mcp_manager, playbooks_manager
 
     # --- LLM -----------------------------------------------------------------
-    model = settings.llm_model
+    model = config.settings.llm_model
     if not model:
         logger.info(
-            "No LLM_MODEL set -- auto-discovering from %s", settings.llm_base_url
+            "No LLM_MODEL set -- auto-discovering from %s",
+            config.settings.llm_base_url,
         )
         try:
-            model = await discover_model(settings.llm_base_url, settings.llm_api_key)
+            model = await discover_model(
+                config.settings.llm_base_url, config.settings.llm_api_key
+            )
         except Exception as exc:
             logger.warning(
                 "Could not reach LLM server at %s: %s. "
                 "Start the server and select a model via the UI or set LLM_MODEL.",
-                settings.llm_base_url,
+                config.settings.llm_base_url,
                 exc,
             )
             model = "unavailable"
     logger.info("Using model: %s", model)
 
     llm = LLMClient(
-        base_url=settings.llm_base_url,
-        api_key=settings.llm_api_key,
+        base_url=config.settings.llm_base_url,
+        api_key=config.settings.llm_api_key,
         model=model,
-        timeout=settings.llm_timeout,
+        timeout=config.settings.llm_timeout,
     )
 
     # --- Context window ------------------------------------------------------
     ctx = await discover_context_window(
-        settings.llm_base_url, settings.llm_api_key, model
+        config.settings.llm_base_url, config.settings.llm_api_key, model
     )
     if ctx:
-        settings.context_window = ctx
+        config.settings.context_window = ctx
         logger.info("Discovered context window: %d tokens", ctx)
     else:
-        logger.info("Using default context window: %d tokens", settings.context_window)
+        logger.info(
+            "Using default context window: %d tokens", config.settings.context_window
+        )
 
     # --- MCP tools (optional) ------------------------------------------------
-    mcp_servers = load_mcp_servers(raw_config)
-    mcp_manager = MCPManager(tool_timeout=settings.mcp_tool_timeout)
+    mcp_servers = load_mcp_servers(config.mcp_raw_config)
+    mcp_manager = MCPManager(tool_timeout=config.settings.mcp_tool_timeout)
     if mcp_servers:
         api_url, token = resolve_kube_credentials()
         if api_url and token:
@@ -130,28 +129,32 @@ async def lifespan(app: FastAPI):
         if not connected:
             logger.warning("No MCP servers connected. Tools will be unavailable.")
     else:
-        logger.info("No MCP servers configured in %s", config_path or "config.json")
+        logger.info(
+            "No MCP servers configured in %s", config.mcp_config_path or "mcp.json"
+        )
 
     # --- Skills --------------------------------------------------------------
     skills = SkillsManager()
-    skills.load(settings.skills_dir)
-    logger.info("Loaded %d skill(s) from %s", len(skills.names), settings.skills_dir)
+    skills.load(config.settings.skills_dir)
+    logger.info(
+        "Loaded %d skill(s) from %s", len(skills.names), config.settings.skills_dir
+    )
 
     # --- Playbooks -----------------------------------------------------------
     playbooks_manager = PlaybooksManager()
-    playbooks_manager.load(settings.playbooks_dir)
+    playbooks_manager.load(config.settings.playbooks_dir)
     logger.info(
         "Loaded %d playbook(s) from %s",
         len(playbooks_manager.list_all()),
-        settings.playbooks_dir,
+        config.settings.playbooks_dir,
     )
 
     # --- Registry ------------------------------------------------------------
     registry = ToolRegistry(
         mcp=mcp_manager,
         skills=skills,
-        bash_timeout=settings.bash_timeout,
-        cache_dir=settings.cache_dir,
+        bash_timeout=config.settings.bash_timeout,
+        cache_dir=config.settings.cache_dir,
     )
     await registry.refresh()
     tool_count = len(registry.get_tool_definitions())
@@ -159,18 +162,18 @@ async def lifespan(app: FastAPI):
 
     # --- Memory ---------------------------------------------------------------
     memory = ChatMemory(
-        max_turns=settings.memory_max_turns,
-        ttl_seconds=settings.memory_ttl_seconds,
+        max_turns=config.settings.memory_max_turns,
+        ttl_seconds=config.settings.memory_ttl_seconds,
     )
     logger.info(
         "Chat memory ready (max_turns=%d, ttl=%ds)",
-        settings.memory_max_turns,
-        settings.memory_ttl_seconds,
+        config.settings.memory_max_turns,
+        config.settings.memory_ttl_seconds,
     )
 
     # --- Chat store (disk persistence) ----------------------------------------
-    chat_store = ChatStore(settings.cache_dir)
-    logger.info("Chat store ready at %s", settings.cache_dir)
+    chat_store = ChatStore(config.settings.cache_dir)
+    logger.info("Chat store ready at %s", config.settings.cache_dir)
 
     yield
 
@@ -234,12 +237,12 @@ async def chat(request: ChatRequest, raw_request: Request) -> ChatResponse:
             llm,
             history=history,
             initial_skills=request.skills,
-            max_active_skills=settings.max_active_skills,
+            max_active_skills=config.settings.max_active_skills,
             context=request.context,
-            max_iterations=settings.max_iterations,
-            max_retries=settings.max_retries,
-            retry_delay=settings.retry_delay,
-            tool_result_limit=settings.memory_tool_result_limit,
+            max_iterations=config.settings.max_iterations,
+            max_retries=config.settings.max_retries,
+            retry_delay=config.settings.retry_delay,
+            tool_result_limit=config.settings.memory_tool_result_limit,
             cancel=cancel,
         )
         memory.append(sid, turn_messages)
@@ -289,16 +292,16 @@ async def chat_stream(
                 request.message,
                 registry,
                 llm,
-                context_window=settings.context_window,
+                context_window=config.settings.context_window,
                 approve_fn=approve_fn if approve else None,
                 history=history,
                 initial_skills=request.skills,
-                max_active_skills=settings.max_active_skills,
+                max_active_skills=config.settings.max_active_skills,
                 context=request.context,
-                max_iterations=settings.max_iterations,
-                max_retries=settings.max_retries,
-                retry_delay=settings.retry_delay,
-                tool_result_limit=settings.memory_tool_result_limit,
+                max_iterations=config.settings.max_iterations,
+                max_retries=config.settings.max_retries,
+                retry_delay=config.settings.retry_delay,
+                tool_result_limit=config.settings.memory_tool_result_limit,
                 cancel=cancel,
             )
             async for event in stream:
@@ -458,8 +461,8 @@ async def status():
         "llm_status": "ok" if llm_ok else "unreachable",
         "mcp_servers": mcp_manager.server_names,
         "tools": len(registry.get_tool_definitions()),
-        "context_window": settings.context_window,
-        "max_active_skills": settings.max_active_skills,
+        "context_window": config.settings.context_window,
+        "max_active_skills": config.settings.max_active_skills,
     }
 
 
@@ -485,22 +488,24 @@ async def switch_model(request: ModelRequest):
     global llm
 
     llm = LLMClient(
-        base_url=settings.llm_base_url,
-        api_key=settings.llm_api_key,
+        base_url=config.settings.llm_base_url,
+        api_key=config.settings.llm_api_key,
         model=request.model,
-        timeout=settings.llm_timeout,
+        timeout=config.settings.llm_timeout,
     )
 
     ctx = await discover_context_window(
-        settings.llm_base_url, settings.llm_api_key, request.model
+        config.settings.llm_base_url, config.settings.llm_api_key, request.model
     )
     if ctx:
-        settings.context_window = ctx
+        config.settings.context_window = ctx
 
     logger.info(
-        "Switched to model: %s (ctx=%d)", request.model, settings.context_window
+        "Switched to model: %s (ctx=%d)",
+        request.model,
+        config.settings.context_window,
     )
-    return {"model": request.model, "context_window": settings.context_window}
+    return {"model": request.model, "context_window": config.settings.context_window}
 
 
 # ---------------------------------------------------------------------------
@@ -561,9 +566,7 @@ if not _web_dist.is_dir():
 app = FastAPI(title="Agent", lifespan=lifespan)
 app.mount("/api", api)
 
-_no_web = os.environ.get("NO_WEB", "").lower() in ("1", "true", "yes")
-
-if not _no_web and _web_dist.is_dir():
+if not config.no_web and _web_dist.is_dir():
     logger.info("Serving web UI from %s", _web_dist)
 
     @app.get("/{full_path:path}")
@@ -583,7 +586,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "mtv_agent.main:app",
-        host=settings.server_host,
-        port=settings.server_port,
+        host=config.settings.server_host,
+        port=config.settings.server_port,
         reload=True,
     )

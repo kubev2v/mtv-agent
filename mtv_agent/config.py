@@ -1,4 +1,4 @@
-"""Agent configuration -- unified config.json with env-var overrides."""
+"""Agent configuration -- split config.json (agent) + mcp.json (MCP servers)."""
 
 import json
 import logging
@@ -38,24 +38,75 @@ def bundled_config_example() -> Path:
     return bundled
 
 
+def bundled_mcp_example() -> Path:
+    """Return the path to ``mcp.json.example``.
+
+    Checks the bundled data dir first (pip-installed package), then
+    falls back to the repo root (development from source).
+    """
+    bundled = _bundled_data_path("mcp.json.example")
+    if bundled.is_file():
+        return bundled
+    repo_root = _PACKAGE_DIR.parent / "mcp.json.example"
+    if repo_root.is_file():
+        return repo_root
+    return bundled
+
+
+# ---------------------------------------------------------------------------
+# Config file discovery
+# ---------------------------------------------------------------------------
+
+_config_path_override: str | None = None
+_mcp_config_path_override: str | None = None
+
 _CONFIG_SEARCH_PATHS = [
     Path("config.json"),
     Path.home() / ".mtv-agent" / "config.json",
 ]
 
+_MCP_SEARCH_PATHS = [
+    Path("mcp.json"),
+    Path.home() / ".mtv-agent" / "mcp.json",
+]
+
 
 def _find_config_file() -> Path | None:
-    """Return the first config file that exists on disk.
+    """Return the first agent config file that exists on disk.
 
-    Search order: ``CONFIG`` env var, then ``./config.json``,
+    Search order: explicit override, then ``./config.json``,
     then ``~/.mtv-agent/config.json``.
     """
-    env = os.environ.get("CONFIG")
-    if env:
-        p = Path(env).expanduser()
-        return p if p.is_file() else None
+    if _config_path_override:
+        p = Path(_config_path_override).expanduser()
+        if not p.is_file():
+            raise FileNotFoundError(
+                f"Explicit config path requested but not found: {p}"
+            )
+        return p
 
     for p in _CONFIG_SEARCH_PATHS:
+        resolved = p.expanduser()
+        if resolved.is_file():
+            return resolved
+    return None
+
+
+def _find_mcp_config_file() -> Path | None:
+    """Return the first MCP config file that exists on disk.
+
+    Search order: explicit override, then ``./mcp.json``,
+    then ``~/.mtv-agent/mcp.json``.
+    """
+    if _mcp_config_path_override:
+        p = Path(_mcp_config_path_override).expanduser()
+        if not p.is_file():
+            raise FileNotFoundError(
+                f"Explicit MCP config path requested but not found: {p}"
+            )
+        return p
+
+    for p in _MCP_SEARCH_PATHS:
         resolved = p.expanduser()
         if resolved.is_file():
             return resolved
@@ -141,6 +192,7 @@ class MCPServerConfig:
 
     url: str
     headers: dict[str, str] = field(default_factory=dict)
+    kube_auth: bool = False
 
 
 def build_kube_auth_headers(api_url: str, token: str) -> dict[str, str]:
@@ -161,27 +213,41 @@ def inject_kube_headers(
     api_url: str,
     token: str,
 ) -> None:
-    """Merge auto-resolved kube auth headers into every MCP server config.
+    """Merge auto-resolved kube auth headers into opted-in MCP server configs.
 
-    Headers already present in a server's config (e.g. set explicitly in
-    ``config.json``) are **not** overwritten.
+    Only servers whose ``kube_auth`` flag is ``True`` (the default) receive
+    the auto-resolved headers.  Headers already present in a server's config
+    (e.g. set explicitly in ``mcp.json``) are **not** overwritten.
     """
     auto_headers = build_kube_auth_headers(api_url, token)
     if not auto_headers:
         return
-    for cfg in servers.values():
+    for name, cfg in servers.items():
+        if not cfg.kube_auth:
+            logger.debug(
+                "Skipping kube header injection for %r (kube_auth=false)", name
+            )
+            continue
         for key, value in auto_headers.items():
             cfg.headers.setdefault(key, value)
 
 
 def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
-    """Extract MCP SSE server entries from a parsed config dict.
+    """Extract MCP SSE server entries from a parsed MCP config dict.
 
     Reads the top-level ``mcpServers`` key.  Entries that use ``command``
     (stdio transport) are skipped with a warning.
     """
+    mcp_section = data.get("mcpServers", {})
+    if not isinstance(mcp_section, dict):
+        logger.warning(
+            "Expected 'mcpServers' to be a mapping, got %s -- ignoring",
+            type(mcp_section).__name__,
+        )
+        return {}
+
     servers: dict[str, MCPServerConfig] = {}
-    for name, entry in data.get("mcpServers", {}).items():
+    for name, entry in mcp_section.items():
         if not isinstance(entry, dict):
             continue
         url = entry.get("url")
@@ -195,9 +261,20 @@ def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
             else:
                 logger.warning("MCP server %r has no 'url' -- skipping", name)
             continue
+
+        headers = entry.get("headers", {})
+        if not isinstance(headers, dict):
+            logger.warning(
+                "MCP server %r: 'headers' is not a dict (%s) -- using empty headers",
+                name,
+                type(headers).__name__,
+            )
+            headers = {}
+
         servers[name] = MCPServerConfig(
             url=url,
-            headers=entry.get("headers", {}),
+            headers=headers,
+            kube_auth=entry.get("kubeAuth", False),
         )
     return servers
 
@@ -205,10 +282,6 @@ def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
-
-_config_path = _find_config_file()
-_raw_config: dict[str, Any] = _load_json_file(_config_path) if _config_path else {}
-_json_values = _flatten_config(_raw_config)
 
 
 def _default_skills_dir() -> Path:
@@ -227,49 +300,123 @@ def _default_playbooks_dir() -> Path:
     return _bundled_data_path("playbooks")
 
 
-class Settings(BaseSettings):
-    llm_base_url: str = "http://localhost:1234/v1"
-    llm_api_key: str = "lm-studio"
-    llm_model: str | None = None
+def _build_settings(json_values: dict[str, Any]) -> "Settings":
+    """Create a Settings instance with the given JSON overrides."""
 
-    server_host: str = "0.0.0.0"
-    server_port: int = 8000
+    class _S(BaseSettings):
+        llm_base_url: str = "http://localhost:1234/v1"
+        llm_api_key: str = "lm-studio"
+        llm_model: str | None = None
 
-    skills_dir: Path = _default_skills_dir()
-    playbooks_dir: Path = _default_playbooks_dir()
+        # Binds to all interfaces for containerized deployments.
+        # For local dev, override with SERVER_HOST=127.0.0.1.
+        server_host: str = "0.0.0.0"
+        server_port: int = 8000
 
-    context_window: int = 30000
-    max_active_skills: int = 3
+        skills_dir: Path = _default_skills_dir()
+        playbooks_dir: Path = _default_playbooks_dir()
 
-    memory_max_turns: int = 20
-    memory_ttl_seconds: int = 3600
-    memory_tool_result_limit: int = 4000
+        context_window: int = 30000
+        max_active_skills: int = 3
 
-    max_iterations: int = 20
-    max_retries: int = 2
-    retry_delay: float = 2.0
+        memory_max_turns: int = 20
+        memory_ttl_seconds: int = 3600
+        memory_tool_result_limit: int = 4000
 
-    llm_timeout: int = 360
-    mcp_tool_timeout: int = 360
-    bash_timeout: int = 360
+        max_iterations: int = 20
+        max_retries: int = 2
+        retry_delay: float = 2.0
 
-    cache_dir: Path = Path.home() / ".mtv-agent" / "cache"
+        llm_timeout: int = 360
+        mcp_tool_timeout: int = 360
+        bash_timeout: int = 360
 
-    _json_values: ClassVar[dict[str, Any]] = _json_values
+        cache_dir: Path = Path.home() / ".mtv-agent" / "cache"
 
-    model_config = {"env_prefix": ""}
+        _json_values: ClassVar[dict[str, Any]] = json_values
 
-    def model_post_init(self, __context: Any) -> None:
-        """Apply JSON config values for fields not already set by env vars."""
-        for key, value in self._json_values.items():
-            env_name = key.upper()
-            if env_name not in os.environ:
-                if key in ("skills_dir", "playbooks_dir", "cache_dir"):
-                    value = Path(value).expanduser()
-                setattr(self, key, value)
+        model_config = {"env_prefix": "", "validate_assignment": True}
+
+        def model_post_init(self, __context: Any) -> None:
+            """Apply JSON config values for fields not already set by env vars."""
+            try:
+                for key, value in self._json_values.items():
+                    env_name = key.upper()
+                    if env_name not in os.environ:
+                        if key in ("skills_dir", "playbooks_dir", "cache_dir"):
+                            value = Path(value).expanduser()
+                        setattr(self, key, value)
+            except Exception as exc:
+                raise RuntimeError(
+                    "Failed initializing Settings from JSON overrides"
+                ) from exc
+
+    return _S()
 
 
-settings = Settings()
+# Settings is a top-level name used solely for type annotations.
+# Each _build_settings() call generates a fresh inner _S class, so the
+# runtime type of the module-level `settings` instance may differ from this
+# one.  That is intentional -- this alias exists so that external code can
+# write ``settings: Settings`` without importing a private symbol.
+Settings = type(_build_settings({}))
+
+# ---------------------------------------------------------------------------
+# Module-level state (initial load)
+# ---------------------------------------------------------------------------
+
+_config_path = _find_config_file()
+_raw_config: dict[str, Any] = _load_json_file(_config_path) if _config_path else {}
+
+_mcp_config_path = _find_mcp_config_file()
+_mcp_raw_config: dict[str, Any] = (
+    _load_json_file(_mcp_config_path) if _mcp_config_path else {}
+)
+
+settings: Settings = _build_settings(_flatten_config(_raw_config))
 
 config_path: Path | None = _config_path
 raw_config: dict[str, Any] = _raw_config
+
+mcp_config_path: Path | None = _mcp_config_path
+mcp_raw_config: dict[str, Any] = _mcp_raw_config
+
+# Runtime flag set by the orchestrator before uvicorn imports main.py.
+no_web: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Reload (called by the orchestrator when --config / --mcp-config is given)
+# ---------------------------------------------------------------------------
+
+
+def reload(
+    config_path_arg: str | None = None,
+    mcp_config_path_arg: str | None = None,
+) -> None:
+    """Re-discover and reload config files, updating module-level state.
+
+    Call this *before* ``uvicorn.run()`` so that when ``main.py`` is
+    imported it sees the freshly loaded values.
+    """
+    global _config_path_override, _mcp_config_path_override
+    global settings, config_path, raw_config
+    global mcp_config_path, mcp_raw_config
+
+    if config_path_arg:
+        _config_path_override = config_path_arg
+    if mcp_config_path_arg:
+        _mcp_config_path_override = mcp_config_path_arg
+
+    # Agent config
+    found = _find_config_file()
+    raw = _load_json_file(found) if found else {}
+    settings = _build_settings(_flatten_config(raw))
+    config_path = found
+    raw_config = raw
+
+    # MCP config
+    mcp_found = _find_mcp_config_file()
+    mcp_raw = _load_json_file(mcp_found) if mcp_found else {}
+    mcp_config_path = mcp_found
+    mcp_raw_config = mcp_raw

@@ -37,7 +37,7 @@ Run the Vite dev server alongside the API server. In two terminals:
 
 ```bash
 # Terminal 1 -- API server without static file serving
-make dev          # from the repo root
+make run-dev      # from the repo root
 
 # Terminal 2 -- Vite dev server on port 5173
 npm run dev       # from web/

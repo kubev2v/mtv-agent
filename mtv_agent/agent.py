@@ -154,9 +154,25 @@ async def run_stream(
         yield {"event": "thinking"}
 
         response = None
+        cancelled_during_llm = False
         for attempt in range(1, max_retries + 1):
             try:
-                response = await llm.chat(messages, tools)
+                if cancel:
+                    llm_task = asyncio.create_task(llm.chat(messages, tools))
+                    cancel_task = asyncio.create_task(cancel.wait())
+                    _done, pending = await asyncio.wait(
+                        [llm_task, cancel_task],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for t in pending:
+                        t.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+                    if cancel.is_set():
+                        cancelled_during_llm = True
+                        break
+                    response = llm_task.result()
+                else:
+                    response = await llm.chat(messages, tools)
                 break
             except APIError as exc:
                 logger.warning(
@@ -167,6 +183,13 @@ async def run_stream(
                 )
                 if attempt < max_retries:
                     await asyncio.sleep(retry_delay)
+
+        if cancelled_during_llm:
+            msg = "Request cancelled."
+            turn = _prepare_turn_messages(messages, turn_start, msg, tool_result_limit)
+            yield {"event": "cancelled", "content": msg}
+            yield {"event": "done", "content": msg, "messages": turn}
+            return
 
         if response is None:
             msg = "The language model is unavailable. Please try again or switch to a different model."
@@ -268,7 +291,24 @@ async def run_stream(
                 logger.info("Tool call: %s(%s)", name, arguments)
                 t0 = time.perf_counter()
                 try:
-                    result = await registry.execute_tool(name, arguments)
+                    if cancel:
+                        tool_task = asyncio.create_task(
+                            registry.execute_tool(name, arguments)
+                        )
+                        cancel_task = asyncio.create_task(cancel.wait())
+                        _done, pending = await asyncio.wait(
+                            [tool_task, cancel_task],
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+                        for t in pending:
+                            t.cancel()
+                        await asyncio.gather(*pending, return_exceptions=True)
+                        if tool_task.cancelled() or cancel.is_set():
+                            result = "Tool cancelled."
+                        else:
+                            result = tool_task.result()
+                    else:
+                        result = await registry.execute_tool(name, arguments)
                 except Exception as exc:
                     logger.error("Tool %s raised %s: %s", name, type(exc).__name__, exc)
                     result = f"Tool error: {exc}"
@@ -328,6 +368,8 @@ async def run(
     ):
         if event["event"] == "content":
             content = event["content"]
+        elif event["event"] == "cancelled":
+            content = event.get("content", "Request cancelled.")
         elif event["event"] == "done":
             turn_messages = event.get("messages", [])
     return content, turn_messages

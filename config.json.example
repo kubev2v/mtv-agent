@@ -8,20 +8,6 @@
     "host": "0.0.0.0",
     "port": 8000
   },
-  "mcpServers": {
-    "kubectl-mtv": {
-      "url": "http://localhost:8080/sse",
-      "image": "quay.io/yaacov/kubectl-mtv-mcp-server:latest"
-    },
-    "kubectl-metrics": {
-      "url": "http://localhost:8081/sse",
-      "image": "quay.io/yaacov/kubectl-metrics-mcp-server:latest"
-    },
-    "kubectl-debug-queries": {
-      "url": "http://localhost:8082/sse",
-      "image": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest"
-    }
-  },
   "skills": {
     "dir": "~/.mtv-agent/skills",
     "maxActive": 3

@@ -16,6 +16,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
     start_all(
         with_cop=args.with_cop,
         config_path=args.config,
+        mcp_config_path=args.mcp_config,
         runtime=args.runtime,
         host=args.host,
         port=args.port,
@@ -35,6 +36,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
         host=args.host,
         port=args.port,
         config_path=args.config,
+        mcp_config_path=args.mcp_config,
         no_web=args.no_web,
         kube_api_url=args.kube_api_url,
         kube_token=args.kube_token,
@@ -130,6 +132,7 @@ def main(argv: list[str] | None = None) -> None:
     p_start.add_argument("--host", default=None, help="API server bind address")
     p_start.add_argument("--port", type=int, default=None, help="API server port")
     p_start.add_argument("--config", default=None, help="Path to config.json")
+    p_start.add_argument("--mcp-config", default=None, help="Path to mcp.json")
     p_start.add_argument(
         "--no-web",
         action="store_true",
@@ -146,6 +149,7 @@ def main(argv: list[str] | None = None) -> None:
     p_serve.add_argument("--host", default=None, help="API server bind address")
     p_serve.add_argument("--port", type=int, default=None, help="API server port")
     p_serve.add_argument("--config", default=None, help="Path to config.json")
+    p_serve.add_argument("--mcp-config", default=None, help="Path to mcp.json")
     p_serve.add_argument(
         "--no-web",
         action="store_true",

@@ -76,11 +76,11 @@ For the full walkthrough, see:
 ```
 mtv-agent init   [--dir DIR] [--force]
 mtv-agent start  [--with-cop] [--runtime docker|podman] [--host HOST] [--port PORT]
-                 [--config PATH] [--no-web]
+                 [--config PATH] [--mcp-config PATH] [--no-web]
                  [--kube-api-url URL] [--kube-token TOKEN]
                  [--kubeconfig PATH] [--kube-context NAME]
-mtv-agent serve  [--host HOST] [--port PORT] [--config PATH] [--no-web]
-                 [--kube-api-url URL] [--kube-token TOKEN]
+mtv-agent serve  [--host HOST] [--port PORT] [--config PATH] [--mcp-config PATH]
+                 [--no-web] [--kube-api-url URL] [--kube-token TOKEN]
                  [--kubeconfig PATH] [--kube-context NAME]
 mtv-agent stop
 mtv-agent config
@@ -112,15 +112,24 @@ kubeconfig automatically.
 
 ## Configuration
 
-All settings live in a single `config.json` file. After running `mtv-agent init`,
-your config is at `~/.mtv-agent/config.json`. The agent searches for a config in this
-order: `CONFIG` env var, then `./config.json`, then `~/.mtv-agent/config.json`.
+Settings are split into two files:
 
-To print the default config (useful for piping or inspection):
+- **`config.json`** -- agent and API server settings (LLM, server, skills,
+  playbooks, memory, agent behaviour, cache)
+- **`mcp.json`** -- MCP server definitions (URLs, container images, headers)
+
+After running `mtv-agent init`, both files are at `~/.mtv-agent/`. The agent
+searches for each file in this order: `./config.json` (or `./mcp.json`), then
+`~/.mtv-agent/config.json` (or `~/.mtv-agent/mcp.json`). You can also pass
+explicit paths with `--config` and `--mcp-config`.
+
+To print the default agent config (useful for piping or inspection):
 
 ```bash
 mtv-agent config
 ```
+
+### `config.json` (agent settings)
 
 ```json
 {
@@ -132,20 +141,6 @@ mtv-agent config
   "server": {
     "host": "0.0.0.0",
     "port": 8000
-  },
-  "mcpServers": {
-    "kubectl-mtv": {
-      "url": "http://localhost:8080/sse",
-      "image": "quay.io/yaacov/kubectl-mtv-mcp-server:latest"
-    },
-    "kubectl-metrics": {
-      "url": "http://localhost:8081/sse",
-      "image": "quay.io/yaacov/kubectl-metrics-mcp-server:latest"
-    },
-    "kubectl-debug-queries": {
-      "url": "http://localhost:8082/sse",
-      "image": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest"
-    }
   },
   "skills": { "dir": "~/.mtv-agent/skills", "maxActive": 3 },
   "playbooks": { "dir": "~/.mtv-agent/playbooks" },
@@ -164,6 +159,39 @@ mtv-agent config
   }
 }
 ```
+
+### `mcp.json` (MCP server definitions)
+
+```json
+{
+  "mcpServers": {
+    "kubectl-mtv": {
+      "url": "http://localhost:8080/sse",
+      "image": "quay.io/yaacov/kubectl-mtv-mcp-server:latest",
+      "kubeAuth": true
+    },
+    "kubectl-metrics": {
+      "url": "http://localhost:8081/sse",
+      "image": "quay.io/yaacov/kubectl-metrics-mcp-server:latest",
+      "kubeAuth": true
+    },
+    "kubectl-debug-queries": {
+      "url": "http://localhost:8082/sse",
+      "image": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest",
+      "kubeAuth": true
+    }
+  }
+}
+```
+
+Each server entry supports these keys:
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `url` | string | *(required)* | SSE endpoint URL for the MCP server |
+| `image` | string | | Container image used by `mtv-agent start` |
+| `headers` | object | `{}` | Custom HTTP headers sent with SSE requests |
+| `kubeAuth` | boolean | `false` | Inject auto-resolved Kubernetes credentials (`Authorization` and `X-Kubernetes-Server`). Must be set to `true` for kube-backed MCP servers. |
 
 Every value can be overridden by an environment variable (no prefix needed):
 
@@ -202,7 +230,7 @@ Every value can be overridden by an environment variable (no prefix needed):
 | claude-openai-proxy | 1234 | Claude-to-OpenAI adapter (only with `--with-cop`) |
 
 The MCP containers are managed automatically. If you run them yourself,
-configure their URLs in `config.json` under `mcpServers`.
+configure their URLs in `mcp.json` under `mcpServers`.
 
 ## Skills and playbooks
 
