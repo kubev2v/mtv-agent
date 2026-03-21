@@ -15,7 +15,7 @@ dev:
 
 ## Start only the API server (pip-installed entrypoint)
 serve:
-	CONFIG=./config.json uv run python -m mtv_agent serve
+	uv run python -m mtv_agent serve --config ./config.json --mcp-config ./mcp.json
 
 ## Build the web UI into web/dist
 build-web:
@@ -52,6 +52,7 @@ package: build-web
 	rm -rf mtv_agent/web_dist
 	cp -r web/dist mtv_agent/web_dist
 	cp config.json.example mtv_agent/data/config.json.example
+	cp mcp.json.example mtv_agent/data/mcp.json.example
 	uv build
 
 ## Show this help

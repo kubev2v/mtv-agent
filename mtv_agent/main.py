@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
@@ -15,10 +14,11 @@ from starlette.responses import FileResponse
 
 from mtv_agent import agent
 from mtv_agent.config import (
-    config_path,
     inject_kube_headers,
     load_mcp_servers,
-    raw_config,
+    mcp_config_path,
+    mcp_raw_config,
+    no_web,
     settings,
 )
 from mtv_agent.lib.chat_store import ChatStore
@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
         logger.info("Using default context window: %d tokens", settings.context_window)
 
     # --- MCP tools (optional) ------------------------------------------------
-    mcp_servers = load_mcp_servers(raw_config)
+    mcp_servers = load_mcp_servers(mcp_raw_config)
     mcp_manager = MCPManager(tool_timeout=settings.mcp_tool_timeout)
     if mcp_servers:
         api_url, token = resolve_kube_credentials()
@@ -130,7 +130,7 @@ async def lifespan(app: FastAPI):
         if not connected:
             logger.warning("No MCP servers connected. Tools will be unavailable.")
     else:
-        logger.info("No MCP servers configured in %s", config_path or "config.json")
+        logger.info("No MCP servers configured in %s", mcp_config_path or "mcp.json")
 
     # --- Skills --------------------------------------------------------------
     skills = SkillsManager()
@@ -561,9 +561,7 @@ if not _web_dist.is_dir():
 app = FastAPI(title="Agent", lifespan=lifespan)
 app.mount("/api", api)
 
-_no_web = os.environ.get("NO_WEB", "").lower() in ("1", "true", "yes")
-
-if not _no_web and _web_dist.is_dir():
+if not no_web and _web_dist.is_dir():
     logger.info("Serving web UI from %s", _web_dist)
 
     @app.get("/{full_path:path}")

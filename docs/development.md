@@ -114,7 +114,7 @@ mtv-agent/
 │   ├── orchestrator.py      # Container + process lifecycle management
 │   ├── main.py              # FastAPI app, /api endpoints, static serving
 │   ├── agent.py             # The tool loop (LLM -> tools -> results -> LLM)
-│   ├── config.py            # Settings (config.json + env-var overrides)
+│   ├── config.py            # Settings (config.json + mcp.json, env-var overrides)
 │   ├── lib/                 # Internal libraries
 │   │   ├── bash_tool.py     # Built-in bash tool for shell commands
 │   │   ├── chat_store.py    # Persistent chat storage (JSON files)
@@ -135,6 +135,7 @@ mtv-agent/
 │   │   └── web_tool.py      # Built-in web fetch tool
 │   └── data/                # Bundled data (included in pip package)
 │       ├── config.json.example
+│       ├── mcp.json.example
 │       ├── skills/
 │       └── playbooks/
 ├── web/                     # Web UI source (Lit + TypeScript, not packaged)

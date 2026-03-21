@@ -160,8 +160,9 @@ This stops the MCP containers and the LLM proxy (if running).
 ## Customising
 
 Edit `~/.mtv-agent/config.json` to change settings like the LLM endpoint, server
-port, or memory limits. See the [README](../README.md#configuration) for the
-full configuration reference.
+port, or memory limits. Edit `~/.mtv-agent/mcp.json` to change MCP server URLs
+or container images. See the [README](../README.md#configuration) for the full
+configuration reference.
 
 Add your own skills to `~/.mtv-agent/skills/` or playbooks to
 `~/.mtv-agent/playbooks/` to extend the agent's capabilities.
