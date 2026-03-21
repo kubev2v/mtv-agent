@@ -23,7 +23,7 @@ from mtv_agent.config import (
     bundled_config_example,
     bundled_mcp_example,
 )
-from mtv_agent.lib.kubeconfig import resolve_kube_credentials, set_kube_credentials
+from mtv_agent.lib.kube import resolve_kube_credentials, set_kube_credentials
 
 logger = logging.getLogger(__name__)
 

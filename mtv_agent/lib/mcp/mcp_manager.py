@@ -6,7 +6,7 @@ import asyncio
 import logging
 
 from mtv_agent.config import MCPServerConfig
-from mtv_agent.lib.mcp_client import (
+from mtv_agent.lib.mcp.mcp_client import (
     DEFAULT_TOOL_CALL_TIMEOUT,
     MCPClient,
     _CONNECTION_ERRORS,

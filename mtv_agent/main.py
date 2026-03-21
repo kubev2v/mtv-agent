@@ -15,15 +15,13 @@ from starlette.responses import FileResponse
 from mtv_agent import agent
 import mtv_agent.config as config
 from mtv_agent.config import inject_kube_headers, load_mcp_servers
-from mtv_agent.lib.chat_store import ChatStore
-from mtv_agent.lib.kubeconfig import resolve_kube_credentials
+from mtv_agent.lib.chat import ChatMemory, ChatStore
+from mtv_agent.lib.content import PlaybooksManager, SkillsManager
+from mtv_agent.lib.kube import resolve_kube_credentials
 from mtv_agent.lib.llm import LLMClient, discover_context_window, discover_model
-from mtv_agent.lib.mcp_manager import MCPManager
-from mtv_agent.lib.memory import ChatMemory
-from mtv_agent.lib.playbooks import PlaybooksManager
-from mtv_agent.lib.skills import SkillsManager
+from mtv_agent.lib.mcp import MCPManager
 from mtv_agent.lib.text_utils import first_sentence
-from mtv_agent.lib.tool_registry import ToolRegistry
+from mtv_agent.lib.tools import ToolRegistry
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 logger = logging.getLogger(__name__)

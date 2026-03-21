@@ -4,10 +4,10 @@ import logging
 from pathlib import Path
 from urllib.parse import urldefrag
 
-from mtv_agent.lib.html_to_md import fetch_and_convert
-from mtv_agent.lib.md_sections import extract_section
 from mtv_agent.lib.text_utils import DEFAULT_TRUNCATE_LIMIT, truncate
-from mtv_agent.lib.web_cache import WebCache
+from mtv_agent.lib.tools.web.html_to_md import fetch_and_convert
+from mtv_agent.lib.tools.web.md_sections import extract_section
+from mtv_agent.lib.tools.web.web_cache import WebCache
 
 logger = logging.getLogger(__name__)
 

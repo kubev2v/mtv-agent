@@ -3,9 +3,10 @@
 import logging
 from pathlib import Path
 
-from mtv_agent.lib import bash_tool, web_tool
-from mtv_agent.lib.mcp_manager import MCPManager
-from mtv_agent.lib.skills import SkillsManager
+from mtv_agent.lib.content.skills import SkillsManager
+from mtv_agent.lib.mcp.mcp_manager import MCPManager
+from . import bash_tool
+from .web import web_tool
 
 logger = logging.getLogger(__name__)
 

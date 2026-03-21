@@ -9,16 +9,15 @@ from collections.abc import AsyncGenerator, Callable, Awaitable
 
 from openai import APIError
 
-from mtv_agent.lib.llm import LLMClient
-from mtv_agent.lib.system_prompt import build_system_prompt
-from mtv_agent.lib.virtual_tools import (
+from mtv_agent.lib.llm import LLMClient, build_system_prompt
+from mtv_agent.lib.text_utils import DEFAULT_TRUNCATE_LIMIT, truncate
+from mtv_agent.lib.tools import ToolRegistry
+from mtv_agent.lib.tools.virtual_tools import (
     SELECT_SKILL_TOOL_NAME,
     SET_CONTEXT_TOOL_NAME,
     make_select_skill_tool,
     make_set_context_tool,
 )
-from mtv_agent.lib.text_utils import DEFAULT_TRUNCATE_LIMIT, truncate
-from mtv_agent.lib.tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
