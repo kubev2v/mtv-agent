@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 
+USER_DIR = Path.home() / ".mtv-agent"
+
 
 def _bundled_data_path(subpath: str) -> Path:
     """Resolve a path inside the bundled ``mtv_agent/data/`` directory."""
@@ -62,12 +64,12 @@ _mcp_config_path_override: str | None = None
 
 _CONFIG_SEARCH_PATHS = [
     Path("config.json"),
-    Path.home() / ".mtv-agent" / "config.json",
+    USER_DIR / "config.json",
 ]
 
 _MCP_SEARCH_PATHS = [
     Path("mcp.json"),
-    Path.home() / ".mtv-agent" / "mcp.json",
+    USER_DIR / "mcp.json",
 ]
 
 
@@ -286,7 +288,7 @@ def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
 
 def _default_skills_dir() -> Path:
     """User dir if it exists, otherwise bundled data."""
-    user = Path.home() / ".mtv-agent" / "skills"
+    user = USER_DIR / "skills"
     if user.is_dir():
         return user
     return _bundled_data_path("skills")
@@ -294,7 +296,7 @@ def _default_skills_dir() -> Path:
 
 def _default_playbooks_dir() -> Path:
     """User dir if it exists, otherwise bundled data."""
-    user = Path.home() / ".mtv-agent" / "playbooks"
+    user = USER_DIR / "playbooks"
     if user.is_dir():
         return user
     return _bundled_data_path("playbooks")
@@ -331,7 +333,7 @@ def _build_settings(json_values: dict[str, Any]) -> "Settings":
         mcp_tool_timeout: int = 360
         bash_timeout: int = 360
 
-        cache_dir: Path = Path.home() / ".mtv-agent" / "cache"
+        cache_dir: Path = USER_DIR / "cache"
 
         _json_values: ClassVar[dict[str, Any]] = json_values
 
