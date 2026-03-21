@@ -79,7 +79,11 @@ def _find_config_file() -> Path | None:
     """
     if _config_path_override:
         p = Path(_config_path_override).expanduser()
-        return p if p.is_file() else None
+        if not p.is_file():
+            raise FileNotFoundError(
+                f"Explicit config path requested but not found: {p}"
+            )
+        return p
 
     for p in _CONFIG_SEARCH_PATHS:
         resolved = p.expanduser()
@@ -96,7 +100,11 @@ def _find_mcp_config_file() -> Path | None:
     """
     if _mcp_config_path_override:
         p = Path(_mcp_config_path_override).expanduser()
-        return p if p.is_file() else None
+        if not p.is_file():
+            raise FileNotFoundError(
+                f"Explicit MCP config path requested but not found: {p}"
+            )
+        return p
 
     for p in _MCP_SEARCH_PATHS:
         resolved = p.expanduser()
@@ -184,6 +192,7 @@ class MCPServerConfig:
 
     url: str
     headers: dict[str, str] = field(default_factory=dict)
+    kube_auth: bool = False
 
 
 def build_kube_auth_headers(api_url: str, token: str) -> dict[str, str]:
@@ -204,15 +213,21 @@ def inject_kube_headers(
     api_url: str,
     token: str,
 ) -> None:
-    """Merge auto-resolved kube auth headers into every MCP server config.
+    """Merge auto-resolved kube auth headers into opted-in MCP server configs.
 
-    Headers already present in a server's config (e.g. set explicitly in
-    ``mcp.json``) are **not** overwritten.
+    Only servers whose ``kube_auth`` flag is ``True`` (the default) receive
+    the auto-resolved headers.  Headers already present in a server's config
+    (e.g. set explicitly in ``mcp.json``) are **not** overwritten.
     """
     auto_headers = build_kube_auth_headers(api_url, token)
     if not auto_headers:
         return
-    for cfg in servers.values():
+    for name, cfg in servers.items():
+        if not cfg.kube_auth:
+            logger.debug(
+                "Skipping kube header injection for %r (kube_auth=false)", name
+            )
+            continue
         for key, value in auto_headers.items():
             cfg.headers.setdefault(key, value)
 
@@ -223,8 +238,16 @@ def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
     Reads the top-level ``mcpServers`` key.  Entries that use ``command``
     (stdio transport) are skipped with a warning.
     """
+    mcp_section = data.get("mcpServers", {})
+    if not isinstance(mcp_section, dict):
+        logger.warning(
+            "Expected 'mcpServers' to be a mapping, got %s -- ignoring",
+            type(mcp_section).__name__,
+        )
+        return {}
+
     servers: dict[str, MCPServerConfig] = {}
-    for name, entry in data.get("mcpServers", {}).items():
+    for name, entry in mcp_section.items():
         if not isinstance(entry, dict):
             continue
         url = entry.get("url")
@@ -238,9 +261,20 @@ def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
             else:
                 logger.warning("MCP server %r has no 'url' -- skipping", name)
             continue
+
+        headers = entry.get("headers", {})
+        if not isinstance(headers, dict):
+            logger.warning(
+                "MCP server %r: 'headers' is not a dict (%s) -- using empty headers",
+                name,
+                type(headers).__name__,
+            )
+            headers = {}
+
         servers[name] = MCPServerConfig(
             url=url,
-            headers=entry.get("headers", {}),
+            headers=headers,
+            kube_auth=entry.get("kubeAuth", False),
         )
     return servers
 
