@@ -127,12 +127,19 @@ def _run_container(
     name: str,
     image: str,
     host_port: int,
+    *,
+    skip_tls: bool = False,
 ) -> None:
     """Start a single MCP container in detached mode.
 
     Credentials are **not** baked into the container; the API server
     sends them as HTTP headers on each SSE connection instead.
     """
+    if skip_tls and runtime != "podman":
+        raise RuntimeError(
+            "--skip-tls is only supported with podman. "
+            "For Docker, configure insecure registries in daemon.json instead."
+        )
     subprocess.run(
         [runtime, "rm", "-f", name],
         capture_output=True,
@@ -140,6 +147,7 @@ def _run_container(
     cmd = [
         runtime,
         "run",
+        *(["--tls-verify=false"] if skip_tls else []),
         "--rm",
         "-d",
         "--name",
@@ -157,6 +165,8 @@ def _run_container(
 def start_mcp_containers(
     runtime: str,
     mcp_raw: dict | None = None,
+    *,
+    skip_tls: bool = False,
 ) -> list[str]:
     """Start MCP server containers, waiting for each to become ready.
 
@@ -185,7 +195,7 @@ def start_mcp_containers(
             url = entry.get("url", "")
             host_port = urlparse(url).port or _CONTAINER_PORT
             name = _container_name(key)
-            _run_container(runtime, name, image, host_port)
+            _run_container(runtime, name, image, host_port, skip_tls=skip_tls)
             names.append(name)
             if not _wait_for_port("localhost", host_port, name):
                 raise RuntimeError(
@@ -395,6 +405,7 @@ def start_all(
     host: str | None = None,
     port: int | None = None,
     no_web: bool = False,
+    skip_tls: bool = False,
     kube_api_url: str | None = None,
     kube_token: str | None = None,
     kubeconfig: str | None = None,
@@ -442,7 +453,9 @@ def start_all(
             )
             sys.exit(1)
 
-    _state.container_names = start_mcp_containers(rt, mcp_raw=config.mcp_raw_config)
+    _state.container_names = start_mcp_containers(
+        rt, mcp_raw=config.mcp_raw_config, skip_tls=skip_tls
+    )
 
     serve(host=host, port=port, no_web=no_web, kube_api_url=api_url, kube_token=token)
 

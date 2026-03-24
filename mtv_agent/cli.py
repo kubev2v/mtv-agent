@@ -21,6 +21,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
         host=args.host,
         port=args.port,
         no_web=args.no_web,
+        skip_tls=args.skip_tls,
         kube_api_url=args.kube_api_url,
         kube_token=args.kube_token,
         kubeconfig=args.kubeconfig,
@@ -137,6 +138,11 @@ def main(argv: list[str] | None = None) -> None:
         "--no-web",
         action="store_true",
         help="Do not serve the static web UI (for frontend dev with Vite)",
+    )
+    p_start.add_argument(
+        "--skip-tls",
+        action="store_true",
+        help="Skip TLS certificate verification when pulling container images",
     )
     _add_kube_flags(p_start)
     p_start.set_defaults(func=_cmd_start)
