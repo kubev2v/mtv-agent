@@ -1,8 +1,8 @@
 # LLM Backends
 
 mtv-agent works with any OpenAI-compatible chat completion API. This document
-covers the two supported options: running a local model with LM Studio, or
-using Anthropic Claude through the bundled `claude-openai-proxy`.
+covers the two tested options -- LM Studio and Claude -- as well as how to
+connect any other compatible server.
 
 > If you haven't installed mtv-agent yet, start with
 > [Installation](installation.md).
@@ -162,6 +162,24 @@ auto-discovery, or set to a specific model name reported by the proxy.
   Claude Pro or Team plan.
 - **Streaming**: The proxy supports streaming responses, which the agent uses
   for real-time token output in the web UI.
+
+## Option 3: Other OpenAI-compatible servers
+
+Any server that implements the OpenAI `/v1/chat/completions` and `/v1/models`
+endpoints can be used. Examples include:
+
+- [Ollama](https://ollama.com) -- `LLM_BASE_URL=http://localhost:11434/v1`
+- [vLLM](https://docs.vllm.ai) -- `LLM_BASE_URL=http://localhost:8000/v1`
+- [OpenAI API](https://platform.openai.com) -- set `LLM_BASE_URL=https://api.openai.com/v1` and `LLM_API_KEY` to your API key
+- [Together AI](https://together.ai), [Groq](https://groq.com), and similar hosted providers
+
+Set `LLM_BASE_URL` and `LLM_API_KEY` in your environment or in
+`config.json`. The agent will auto-discover the model name unless you set
+`LLM_MODEL` explicitly.
+
+> **Tool calling support is required.** The agent relies on the LLM returning
+> structured tool calls. Models or providers that do not support tool calling
+> will not work correctly.
 
 ## Switching between backends
 
