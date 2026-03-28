@@ -211,6 +211,15 @@ class ApproveRequest(BaseModel):
     reason: str | None = None
 
 
+def _playbook_summaries() -> list[tuple[str, str]]:
+    """Extract (name, description) pairs from the playbooks manager."""
+    return [
+        (p["name"], p.get("description", ""))
+        for p in playbooks_manager.list_all()
+        if p.get("description")
+    ]
+
+
 @api.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, raw_request: Request) -> ChatResponse:
     """Non-streaming: returns the complete answer as JSON."""
@@ -237,6 +246,7 @@ async def chat(request: ChatRequest, raw_request: Request) -> ChatResponse:
             initial_skills=request.skills,
             max_active_skills=config.settings.max_active_skills,
             context=request.context,
+            playbook_summaries=_playbook_summaries(),
             max_iterations=config.settings.max_iterations,
             max_retries=config.settings.max_retries,
             retry_delay=config.settings.retry_delay,
@@ -296,6 +306,7 @@ async def chat_stream(
                 initial_skills=request.skills,
                 max_active_skills=config.settings.max_active_skills,
                 context=request.context,
+                playbook_summaries=_playbook_summaries(),
                 max_iterations=config.settings.max_iterations,
                 max_retries=config.settings.max_retries,
                 retry_delay=config.settings.retry_delay,

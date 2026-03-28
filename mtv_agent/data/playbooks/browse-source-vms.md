@@ -8,7 +8,6 @@ tools:
   - mtv_read (server: kubectl-mtv)
 skills:
   - inventory-tool-guide
-  - inventory-query-cookbook
 ---
 
 # Browse Source VMs
