@@ -199,6 +199,7 @@ metrics_read {
 | `node_network_receive_bytes_total` | Bytes received per node/interface |
 | `node_network_transmit_bytes_total` | Bytes transmitted per node/interface |
 | `instance:node_network_receive_bytes_excluding_lo:rate1m` | Pre-computed node receive rate |
+| `instance:node_network_transmit_bytes_excluding_lo:rate1m` | Pre-computed node transmit rate |
 
 ---
 
@@ -405,27 +406,97 @@ metrics_read { "command": "query", "flags": { "query": "sum by (provider, status
 
 ### Network traffic of migration pods
 
-During active Forklift migrations, data-transfer pods (virt-v2v, populator, importer) run in the target namespace.
+During active Forklift migrations, data-transfer pods run in the target namespace. Migration pod names follow the pattern `{plan-name}-{vm-id}-{random}` (e.g. `test-vmware-metrics-vm-43-tws62`).
+
+**Step 1 -- Discover migration pods:**
+
+VMware/general migration pods (carry a `plan` label):
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_migration_pod_rx", "output": "markdown" } }
+debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "selector": "plan", "output": "markdown" } }
+```
+
+oVirt/OpenStack populator pods (named `populate-{uuid}-...`):
+
+```json
+debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "query": "where name ~= '^populate-'", "output": "markdown" } }
+```
+
+**Step 2 -- Query network traffic for discovered pods:**
+
+Use the pod names from Step 1 to build a regex filter (replace `POD1|POD2` with the actual names):
+
+```json
+metrics_read {
+  "command": "query",
+  "flags": { "query": "topk(10, sort_desc(sum by (pod)(rate(container_network_receive_bytes_total{namespace=\"TARGET_NAMESPACE\",pod=~\"POD1|POD2\"}[5m]))))", "output": "markdown" }
+}
 ```
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_migration_pod_tx", "output": "markdown" } }
+metrics_read {
+  "command": "query",
+  "flags": { "query": "topk(10, sort_desc(sum by (pod)(rate(container_network_transmit_bytes_total{namespace=\"TARGET_NAMESPACE\",pod=~\"POD1|POD2\"}[5m]))))", "output": "markdown" }
+}
 ```
 
-Filter to a specific namespace:
+### Short-lived pod network metrics
+
+Pods that run under ~60 seconds (e.g. oVirt/OpenStack populator pods) may not have container-level network metrics (`container_network_*`). This is because cadvisor needs 1-2 collection cycles (~10-20s) to establish network namespace tracking, and the pod may complete before tracking starts. CPU and memory metrics are unaffected.
+
+**Node-level network metrics** capture the transfer at the node level. Determine which node ran the pod (`spec.nodeName` or `kube_pod_info`), then query RX and TX together:
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_migration_pod_rx", "namespace": "TARGET_NAMESPACE", "output": "markdown" } }
+metrics_read {
+  "command": "query_range",
+  "flags": {
+    "query": [
+      "instance:node_network_receive_bytes_excluding_lo:rate1m{instance=~\"NODE_NAME.*\"}",
+      "instance:node_network_transmit_bytes_excluding_lo:rate1m{instance=~\"NODE_NAME.*\"}"
+    ],
+    "name": ["node_rx", "node_tx"],
+    "start": "<MIGRATION_START>",
+    "end": "<MIGRATION_END>",
+    "step": "30s",
+    "output": "markdown"
+  }
+}
 ```
 
-Filter to specific pod patterns:
+Compare against baseline before/after the migration window to isolate transfer traffic.
+
+**CPU activity** confirms the pod was active during the window:
 
 ```json
-metrics_read { "command": "preset", "flags": { "name": "mtv_migration_pod_rx", "selector": "pod=~virt-v2v.*", "output": "markdown" } }
+metrics_read { "command": "query_range", "flags": { "query": "rate(container_cpu_usage_seconds_total{pod=\"<POD>\",namespace=\"<NS>\"}[1m])", "start": "<START>", "end": "<END>", "step": "30s", "output": "markdown" } }
 ```
+
+### Completed migration historical queries
+
+When querying metrics for a migration that already finished, use the plan's start/completion timestamps as absolute time bounds:
+
+1. Get timestamps from the plan:
+
+```json
+mtv_read { "command": "describe plan", "flags": { "name": "<PLAN>", "namespace": "<NS>", "output": "markdown" } }
+```
+
+2. Use ISO-8601 `start`/`end` in `query_range`:
+
+```json
+metrics_read {
+  "command": "query_range",
+  "flags": {
+    "query": "sum by (pod)(rate(container_network_receive_bytes_total{namespace=\"<NS>\"}[5m]))",
+    "start": "2025-06-15T10:00:00Z",
+    "end": "2025-06-15T12:30:00Z",
+    "step": "60s",
+    "output": "markdown"
+  }
+}
+```
+
+Do not use relative offsets like `-1h` for completed migrations -- the data may fall outside that window.
 
 ### Checking migration pod status with `debug_read`
 

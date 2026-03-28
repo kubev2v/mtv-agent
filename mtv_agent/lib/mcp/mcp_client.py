@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from contextlib import AsyncExitStack
@@ -176,7 +177,15 @@ class MCPClient:
                 parts.append(block.text)
             else:
                 parts.append(str(block))
-        return "\n".join(parts)
+        text = "\n".join(parts)
+
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, (dict, list)):
+                return json.dumps(parsed, indent=2, ensure_ascii=False)
+        except json.JSONDecodeError:
+            pass
+        return text
 
     @property
     def url(self) -> str | None:

@@ -62,8 +62,89 @@ All query commands accept an `output` flag:
 | `json` | You need to parse or process results programmatically. |
 | `raw` | You need the full Prometheus API response as-is. |
 
-**Always use `output: "markdown"` (or omit for default) when presenting to the user.**
+**Always use `output: "markdown"` when presenting results to the user.**
 Use `output: "json"` only when you need to extract specific fields for further processing.
+
+## Migration Pod Discovery
+
+Before querying network metrics for migration pods, **discover the actual pod names first**. Migration pods are named `{plan-name}-{vm-id}-{random}` (e.g. `test-vmware-metrics-vm-43-tws62`), not `virt-v2v-*` or `populator-*`.
+
+1. List VMware/general migration pods (carry a `plan` label):
+
+```json
+debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "selector": "plan", "output": "markdown" } }
+```
+
+2. List oVirt/OpenStack populator pods (named `populate-{uuid}-...`):
+
+```json
+debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "query": "where name ~= '^populate-'", "output": "markdown" } }
+```
+
+3. Use the discovered pod names in PromQL queries (replace `POD1|POD2` with the actual names from steps 1-2):
+
+```json
+metrics_read { "command": "query", "flags": { "query": "sum by (pod)(rate(container_network_receive_bytes_total{namespace=\"<NAMESPACE>\",pod=~\"POD1|POD2\"}[5m]))", "output": "markdown" } }
+```
+
+## Short-Lived Pod Network Metrics
+
+Container-level network metrics (`container_network_*`) require cadvisor to establish network namespace tracking, which takes 1-2 collection cycles (~10-20s). Pods that run under ~60 seconds (e.g. oVirt/OpenStack populator pods) may complete before tracking starts. CPU and memory metrics are unaffected because they are read from persistent cgroup files.
+
+When container-level network metrics are missing for a short-lived pod, use these alternatives (ordered by signal quality):
+
+**1. Node-level network metrics** (best for measuring transfer throughput):
+
+Determine which node ran the pod, then query the node's aggregated RX and TX rates during the migration window:
+
+```json
+metrics_read {
+  "command": "query_range",
+  "flags": {
+    "query": [
+      "instance:node_network_receive_bytes_excluding_lo:rate1m{instance=~\"NODE_NAME.*\"}",
+      "instance:node_network_transmit_bytes_excluding_lo:rate1m{instance=~\"NODE_NAME.*\"}"
+    ],
+    "name": ["node_rx", "node_tx"],
+    "start": "<MIGRATION_START>",
+    "end": "<MIGRATION_END>",
+    "step": "30s",
+    "output": "markdown"
+  }
+}
+```
+
+Compare against the baseline before/after the migration window to isolate the transfer traffic.
+
+**2. CPU activity** (confirms the pod was active):
+
+```json
+metrics_read { "command": "query_range", "flags": { "query": "rate(container_cpu_usage_seconds_total{pod=\"<POD_NAME>\",namespace=\"<NS>\"}[1m])", "start": "<START>", "end": "<END>", "step": "30s", "output": "markdown" } }
+```
+
+**3. Pod logs** (transfer progress with bytes and elapsed time):
+
+```json
+debug_read { "command": "logs", "flags": { "name": "<POD_NAME>", "namespace": "<NS>", "tail": 200, "output": "markdown" } }
+```
+
+## Time Window for Completed Migrations
+
+When querying metrics for a past migration, always compute the exact time window from plan metadata first:
+
+1. Get the plan timestamps:
+
+```json
+mtv_read { "command": "describe plan", "flags": { "name": "<PLAN>", "namespace": "<NS>", "output": "markdown" } }
+```
+
+2. Use the start/completion timestamps as ISO-8601 `start`/`end` in `query_range`:
+
+```json
+metrics_read { "command": "query_range", "flags": { "query": "<PROMQL>", "start": "2025-06-15T10:00:00Z", "end": "2025-06-15T12:30:00Z", "step": "60s", "output": "markdown" } }
+```
+
+Do not use relative offsets like `-1h` for completed migrations -- the data may fall outside that window.
 
 ## Post-Query Filtering with `selector`
 
@@ -115,6 +196,14 @@ metrics_read { "command": "labels", "flags": { "metric": "container_network_rece
 ---
 
 ## How to Query
+
+### Time parameters (`start` / `end`)
+
+Accepted formats:
+- Relative duration: `"-1h"`, `"-30m"`, `"-2d"`
+- ISO-8601 string: `"2025-06-15T10:00:00Z"`
+
+Integer Unix timestamps are NOT accepted. If you have a Unix timestamp, convert it to ISO-8601 first.
 
 ### Instant query (point-in-time)
 
