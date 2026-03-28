@@ -145,9 +145,15 @@ mtv-agent/
 │   ├── dist/                # Built assets (served by Python server)
 │   └── package.json
 ├── docs/                    # Documentation
+│   ├── index.md             # Documentation index and navigation
 │   ├── installation.md      # Prerequisites, install, workspace setup
 │   ├── quickstart.md        # Zero-to-running walkthrough
 │   ├── llm-backends.md      # LM Studio and Claude setup guide
+│   ├── skills-and-playbooks.md # Skills and playbooks authoring guide
+│   ├── cli-reference.md     # CLI subcommands and flags
+│   ├── configuration.md     # config.json, mcp.json, env vars
+│   ├── api-reference.md     # HTTP API endpoints and SSE events
+│   ├── architecture.md      # Components, tool loop, data flow
 │   └── development.md       # This file
 ├── Makefile                 # Dev and build targets
 └── pyproject.toml           # Package metadata and dependencies

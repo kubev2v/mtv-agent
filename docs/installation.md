@@ -3,21 +3,24 @@
 ## Prerequisites
 
 - **Python 3.11+**
-- **[uv](https://docs.astral.sh/uv/)** -- fast Python package manager
-  (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- **Docker or Podman** -- used by `mtv-agent start` to run the three MCP
-  server containers that give the agent access to your OpenShift cluster.
-  Not required if you run the MCP servers yourself and use `mtv-agent serve`
-  instead
+- **Docker or Podman** -- used by `mtv-agent start` to run the MCP server
+  containers that give the agent access to your OpenShift cluster. Not required
+  if you run the MCP servers yourself and use `mtv-agent serve` instead.
 - **An OpenShift cluster** with [MTV/Forklift](https://github.com/kubev2v/forklift)
-  installed. You should have a valid kubeconfig (via `oc login` or `kubectl`)
-  or a bearer token for the cluster API
+  installed. You need a valid kubeconfig (via `oc login` or `kubectl`) or a
+  bearer token for the cluster API.
 - **An OpenAI-compatible LLM server** -- either
   [LM Studio](https://lmstudio.ai) (local) or
   [Claude](https://docs.anthropic.com/en/docs/claude-code) via the bundled
-  proxy. See [llm-backends.md](llm-backends.md) for details.
+  proxy. See [LLM Backends](llm-backends.md) for details.
 
 ## Install from pip
+
+```bash
+pip install mtv-agent
+```
+
+Or, if you use [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv pip install mtv-agent
@@ -42,9 +45,10 @@ cd mtv-agent
 uv sync --extra dev
 ```
 
-`uv sync` creates the virtual environment automatically (in `.venv/`),
-installs all dependencies, and sets up the package in editable mode.
-Code changes take effect immediately.
+`uv sync` creates a virtual environment (in `.venv/`), installs all
+dependencies, and sets up the package in editable mode. Code changes take
+effect immediately. See [Development](development.md) for the full contributor
+workflow.
 
 ## Initialise a workspace
 
@@ -59,12 +63,14 @@ This creates `~/.mtv-agent/` with:
 
 ```
 ~/.mtv-agent/
-├── config.json     # agent settings (LLM, server, MCP, memory, etc.)
+├── config.json     # agent settings (LLM, server, memory, etc.)
+├── mcp.json        # MCP server definitions
 ├── skills/         # markdown reference guides the agent can load on demand
 └── playbooks/      # task playbooks exposed in the web UI
 ```
 
-You can edit any of these files to customise the agent's behaviour.
+You can edit any of these files to customise the agent. See
+[Configuration](configuration.md) for the full reference.
 
 ### Options
 

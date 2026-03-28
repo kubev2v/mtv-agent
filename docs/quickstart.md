@@ -92,6 +92,9 @@ mtv-agent start --kube-api-url https://api.cluster.example.com:6443 \
 mtv-agent start --kubeconfig ~/.kube/prod.config --kube-context prod-admin
 ```
 
+See [CLI Reference](cli-reference.md) for the full list of flags and
+credential resolution details.
+
 ## Step 3: Start the agent
 
 ### With LM Studio
@@ -145,27 +148,13 @@ mtv-agent stop
 
 This stops the MCP containers and the LLM proxy (if running).
 
-## What's running
+## Next steps
 
-`mtv-agent start` manages five processes for you:
-
-| Component | Port | Description |
-|---|---|---|
-| API server | 8000 | FastAPI app serving the chat API and web UI |
-| kubectl-mtv MCP | 8080 | MTV/Forklift resource queries and mutations |
-| kubectl-metrics MCP | 8081 | Prometheus/Thanos metric queries |
-| kubectl-debug-queries MCP | 8082 | Kubernetes resources, logs, and events |
-| claude-openai-proxy | 1234 | Claude-to-OpenAI adapter (only with `--with-cop`) |
-
-## Customising
-
-Edit `~/.mtv-agent/config.json` to change settings like the LLM endpoint, server
-port, or memory limits. Edit `~/.mtv-agent/mcp.json` to change MCP server URLs
-or container images. See the [README](../README.md#configuration) for the full
-configuration reference.
-
-Add your own skills to `~/.mtv-agent/skills/` or playbooks to
-`~/.mtv-agent/playbooks/` to extend the agent's capabilities.
+- [Configuration](configuration.md) -- customise the LLM endpoint, server
+  port, memory limits, and MCP server URLs
+- [Skills and Playbooks](skills-and-playbooks.md) -- extend the agent with
+  custom reference guides and task workflows
+- [Architecture](architecture.md) -- understand the components and data flow
 
 ## Troubleshooting
 
