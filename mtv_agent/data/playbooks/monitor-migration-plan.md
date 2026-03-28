@@ -115,15 +115,53 @@ investigate pods in step 7.
 
 ### Step 6 -- Check migration pod network traffic over migration window
 
+First, discover migration pods and the nodes they run on.
+
+VMware/general migration pods (carry a `plan` label):
+
 ```json
-metrics_read { "command": "query_range", "flags": { "query": "sum by (pod)(rate(container_network_receive_bytes_total{namespace=\"<NAMESPACE>\"}[5m]))", "start": "<START>", "end": "<END>", "step": "60s", "output": "markdown" } }
+debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "selector": "plan", "output": "markdown" } }
+```
+
+oVirt/OpenStack populator pods (named `populate-{uuid}-...`):
+
+```json
+debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "query": "where name ~= '^populate-'", "output": "markdown" } }
+```
+
+Then query container-level network traffic for the discovered pods (`<PODS>` = `pod1|pod2|...`):
+
+```json
+metrics_read { "command": "query_range", "flags": { "query": "sum by (pod)(rate(container_network_receive_bytes_total{namespace=\"<NAMESPACE>\",pod=~\"<PODS>\"}[5m]))", "start": "<START>", "end": "<END>", "step": "60s", "output": "markdown" } }
 ```
 
 ```json
-metrics_read { "command": "query_range", "flags": { "query": "sum by (pod)(rate(container_network_transmit_bytes_total{namespace=\"<NAMESPACE>\"}[5m]))", "start": "<START>", "end": "<END>", "step": "60s", "output": "markdown" } }
+metrics_read { "command": "query_range", "flags": { "query": "sum by (pod)(rate(container_network_transmit_bytes_total{namespace=\"<NAMESPACE>\",pod=~\"<PODS>\"}[5m]))", "start": "<START>", "end": "<END>", "step": "60s", "output": "markdown" } }
 ```
 
-**IF no data**: metrics may lag behind. Note this but continue.
+**IF no data**: Short-lived pods (~under 60 seconds, such as oVirt/OpenStack populator pods)
+may complete before cadvisor establishes network namespace tracking. Use node-level metrics
+as a fallback -- query the node where the pod ran:
+
+```json
+metrics_read {
+  "command": "query_range",
+  "flags": {
+    "query": [
+      "instance:node_network_receive_bytes_excluding_lo:rate1m{instance=~\"<NODE_NAME>.*\"}",
+      "instance:node_network_transmit_bytes_excluding_lo:rate1m{instance=~\"<NODE_NAME>.*\"}"
+    ],
+    "name": ["node_rx", "node_tx"],
+    "start": "<START>",
+    "end": "<END>",
+    "step": "30s",
+    "output": "markdown"
+  }
+}
+```
+
+Compare against baseline before/after the migration window. Note that node-level metrics
+include all traffic on that node, not only migration traffic.
 
 ### Step 7 -- Investigate failed or stuck VMs (conditional)
 
