@@ -78,6 +78,7 @@ async def run_stream(
     initial_skills: list[str] | None = None,
     max_active_skills: int = 3,
     context: dict[str, str] | None = None,
+    playbook_summaries: list[tuple[str, str]] | None = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
@@ -121,7 +122,7 @@ async def run_stream(
         return sections
 
     def _system_prompt() -> str:
-        return build_system_prompt(_skill_sections(), ctx or None)
+        return build_system_prompt(_skill_sections(), ctx or None, playbook_summaries)
 
     messages: list[dict] = [
         {"role": "system", "content": _system_prompt()},
@@ -342,6 +343,7 @@ async def run(
     initial_skills: list[str] | None = None,
     max_active_skills: int = 3,
     context: dict[str, str] | None = None,
+    playbook_summaries: list[tuple[str, str]] | None = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
@@ -359,6 +361,7 @@ async def run(
         initial_skills=initial_skills,
         max_active_skills=max_active_skills,
         context=context,
+        playbook_summaries=playbook_summaries,
         max_iterations=max_iterations,
         max_retries=max_retries,
         retry_delay=retry_delay,
