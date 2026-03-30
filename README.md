@@ -17,6 +17,12 @@ mtv-agent start             # with LM Studio (default)
 mtv-agent start --with-cop  # with Claude
 ```
 
+Or, using [uv](https://docs.astral.sh/uv/) (isolated install, no root needed):
+
+```bash
+uv tool install mtv-agent
+```
+
 Open `http://localhost:8000` in your browser.
 
 You need an OpenAI-compatible LLM backend, access to an OpenShift cluster with

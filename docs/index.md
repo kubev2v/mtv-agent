@@ -8,7 +8,7 @@ with a tool loop, MCP tool integration, and markdown-based skills and playbooks.
 Step-by-step guides for installing, configuring, and using mtv-agent.
 
 - [Installation](installation.md) -- prerequisites, install methods, and workspace setup
-- [Local venv Install](local-venv-install.md) -- install without root using a user-local virtual environment
+- [Local venv Install](local-venv-install.md) -- install without root using `uv tool` or a user-local virtual environment
 - [Quick Start](quickstart.md) -- go from a fresh install to a running agent in under five minutes
 - [LLM Backends](llm-backends.md) -- set up LM Studio, Claude, or any OpenAI-compatible server
 - [Skills and Playbooks](skills-and-playbooks.md) -- understand, use, and author custom skills and playbooks
