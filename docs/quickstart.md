@@ -12,6 +12,9 @@ pip install mtv-agent
 mtv-agent init
 ```
 
+> If you can't install system-wide, see
+> [Install with a user-local venv](local-venv-install.md).
+
 You should also have:
 
 - **Docker or Podman** installed -- `mtv-agent start` uses it to run the MCP

@@ -29,6 +29,10 @@ uv pip install mtv-agent
 This installs the `mtv-agent` command along with all Python dependencies,
 including `claude-openai-proxy`.
 
+> **Tip:** If your system Python is managed or you don't have root access, see
+> [Install with a user-local venv](local-venv-install.md) for a no-sudo
+> alternative using [uv](https://docs.astral.sh/uv/).
+
 Verify the installation:
 
 ```bash
