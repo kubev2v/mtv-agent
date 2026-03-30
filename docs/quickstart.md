@@ -8,12 +8,13 @@ mtv-agent with the web UI -- in under five minutes.
 Make sure you have completed [Installation](installation.md):
 
 ```bash
-pip install mtv-agent
+uv tool install mtv-agent
 mtv-agent init
 ```
 
-> If you can't install system-wide, see
-> [Install with a user-local venv](local-venv-install.md).
+> `uv tool install` keeps everything in an isolated venv and only places
+> `mtv-agent` on your PATH. If you prefer pip, run `pip install mtv-agent`
+> instead. See [Installation](installation.md) for details.
 
 You should also have:
 

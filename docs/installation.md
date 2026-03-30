@@ -14,24 +14,40 @@
   [Claude](https://docs.anthropic.com/en/docs/claude-code) via the bundled
   proxy. See [LLM Backends](llm-backends.md) for details.
 
-## Install from pip
+## Install with uv (recommended)
+
+[uv](https://docs.astral.sh/uv/) installs `mtv-agent` into an isolated
+virtual environment and only places the `mtv-agent` command on your PATH --
+no other executables leak out, no root access required.
+
+```bash
+uv tool install mtv-agent
+```
+
+If `~/.local/bin` is not already on your PATH, `uv` will print a warning
+with the command to add it.
+
+Verify the installation:
+
+```bash
+mtv-agent --version
+```
+
+Upgrade later with `uv tool upgrade mtv-agent`.
+
+For more options (manual venv with symlink, custom venv location), see
+[Install with a user-local venv](local-venv-install.md).
+
+## Alternative: install with pip
+
+If you prefer pip and have write access to your Python environment:
 
 ```bash
 pip install mtv-agent
 ```
 
-Or, if you use [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv pip install mtv-agent
-```
-
 This installs the `mtv-agent` command along with all Python dependencies,
 including `claude-openai-proxy`.
-
-> **Tip:** If your system Python is managed or you don't have root access, see
-> [Install with a user-local venv](local-venv-install.md) for a no-sudo
-> alternative using [uv](https://docs.astral.sh/uv/).
 
 Verify the installation:
 
