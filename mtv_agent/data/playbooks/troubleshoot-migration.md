@@ -8,9 +8,6 @@ tools:
   - mtv_read (server: kubectl-mtv)
   - debug_read (server: kubectl-debug-queries)
   - metrics_read (server: kubectl-metrics)
-skills:
-  - metrics-tool-guide
-  - metrics-query-cookbook
 ---
 
 # Troubleshoot Migration
@@ -67,10 +64,34 @@ Identify:
 **IF plan status is Failed or VMs are failed**: continue to step 3.
 **IF plan status is Executing but appears stuck**: continue to step 3.
 
-### Step 3 -- Check MTV controller logs for the plan
+### Step 3 -- Check plan and mapping conditions
 
 ```json
-mtv_read { "command": "health logs", "flags": { "namespace": "<MTV_NAMESPACE>", "filter_plan": "<PLAN_NAME>", "filter_level": "error", "output": "markdown" } }
+mtv_read { "command": "get plan", "flags": { "name": "<PLAN_NAME>", "namespace": "<NAMESPACE>", "output": "json" }, "fields": ["metadata", "status"] }
+```
+
+Look at `.status.conditions` for error or warning conditions. Common conditions:
+- **Ready=False**: plan has configuration issues
+- **HasCriticalCondition=True**: VMs have critical migration concerns
+- **Executing=False with message**: plan stalled with a specific reason
+
+Also check mapping conditions:
+
+```json
+debug_read { "command": "list", "flags": { "resource": "networkmaps", "namespace": "<NAMESPACE>", "output": "json", "query": "select name, status.conditions" } }
+```
+
+```json
+debug_read { "command": "list", "flags": { "resource": "storagemaps", "namespace": "<NAMESPACE>", "output": "json", "query": "select name, status.conditions" } }
+```
+
+**IF conditions reveal the root cause**: skip to step 11 (report).
+**IF conditions look normal**: continue to step 4 (logs).
+
+### Step 4 -- Check MTV controller logs for the plan
+
+```json
+debug_read { "command": "logs", "flags": { "name": "deployment/forklift-controller", "namespace": "<MTV_NAMESPACE>", "container": "main", "tail": 200, "query": "where fields.plan ~= '.*<PLAN_NAME>.*' and level = 'ERROR'", "output": "markdown" } }
 ```
 
 **IF errors found**: save them -- they often reveal the root cause (provider errors,
@@ -78,10 +99,10 @@ conversion failures, resource issues).
 **IF no errors at error level**: try warning level:
 
 ```json
-mtv_read { "command": "health logs", "flags": { "namespace": "<MTV_NAMESPACE>", "filter_plan": "<PLAN_NAME>", "filter_level": "warn", "output": "markdown" } }
+debug_read { "command": "logs", "flags": { "name": "deployment/forklift-controller", "namespace": "<MTV_NAMESPACE>", "container": "main", "tail": 200, "query": "where fields.plan ~= '.*<PLAN_NAME>.*' and level = 'WARN'", "output": "markdown" } }
 ```
 
-### Step 4 -- Check migration pods in the target namespace
+### Step 5 -- Check migration pods in the target namespace
 
 ```json
 debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "selector": "plan", "output": "markdown" } }
@@ -100,7 +121,7 @@ debug_read { "command": "logs", "flags": { "name": "<POD_NAME>", "namespace": "<
 ```
 
 **IF no migration pods found**: the migration may not have started pod creation yet --
-check events (step 5) and provider (step 6).
+check events (step 6) and provider (step 7).
 
 **IF pods are Running but not progressing**: check for OOMKilled or resource limits:
 
@@ -110,7 +131,7 @@ debug_read { "command": "get", "flags": { "resource": "pod", "name": "<POD_NAME>
 
 Look for `.status.containerStatuses[*].lastState.terminated.reason` equal to `"OOMKilled"`.
 
-### Step 5 -- Check events in the target namespace
+### Step 6 -- Check events in the target namespace
 
 ```json
 debug_read { "command": "events", "flags": { "namespace": "<NAMESPACE>", "query": "where type = 'Warning' order by lastTimestamp desc", "limit": 20, "output": "markdown" } }
@@ -122,7 +143,7 @@ debug_read { "command": "events", "flags": { "namespace": "<NAMESPACE>", "query"
 - **BackOff / CrashLoopBackOff**: pod is crashing repeatedly
 - **ProvisioningFailed**: PVC cannot be created (storage class issue)
 
-### Step 6 -- Check provider connectivity
+### Step 7 -- Check provider connectivity
 
 ```json
 mtv_read { "command": "get provider", "flags": { "namespace": "<NAMESPACE>", "output": "markdown" } }
@@ -134,7 +155,7 @@ mtv_read { "command": "get provider", "flags": { "namespace": "<NAMESPACE>", "ou
 debug_read { "command": "events", "flags": { "namespace": "<NAMESPACE>", "resource": "Pod", "query": "where type = 'Warning'", "limit": 10, "output": "markdown" } }
 ```
 
-### Step 7 -- Check cluster resource pressure
+### Step 8 -- Check cluster resource pressure
 
 ```json
 debug_read { "command": "list", "flags": { "resource": "nodes", "output": "markdown" } }
@@ -147,7 +168,7 @@ metrics_read { "command": "query", "flags": { "query": "(1 - node_memory_MemAvai
 **IF any node is NotReady or memory > 90%**: cluster resource pressure may be causing
 scheduling failures for migration pods.
 
-### Step 8 -- Check storage (PVC status)
+### Step 9 -- Check storage (PVC status)
 
 ```json
 debug_read { "command": "list", "flags": { "resource": "pvc", "namespace": "<NAMESPACE>", "query": "where status.phase != 'Bound'", "output": "markdown" } }
@@ -163,7 +184,7 @@ debug_read { "command": "list", "flags": { "resource": "storageclasses", "output
 
 **IF no default StorageClass**: this is likely the root cause -- DataVolumes require a default.
 
-### Step 9 -- Check migration throughput (if migration is slow)
+### Step 10 -- Check migration throughput (if migration is slow)
 
 Only run if the symptom is "slow migration":
 
@@ -182,7 +203,7 @@ or throttling. Check:
 metrics_read { "command": "preset", "flags": { "name": "namespace_network_errors", "output": "markdown" } }
 ```
 
-### Step 10 -- Report
+### Step 11 -- Report
 
 Present findings organized by category:
 
@@ -193,13 +214,14 @@ Present findings organized by category:
 
 | Symptom | Likely Cause | Evidence | Remediation |
 |---------|-------------|----------|-------------|
-| Pod CrashLoopBackOff | Converter failed | Log errors from step 4 | Check source VM compatibility, increase memory limits |
+| Condition errors | Plan/mapping misconfiguration | Conditions from step 3 | Fix plan or mapping configuration |
+| Pod CrashLoopBackOff | Converter failed | Log errors from step 5 | Check source VM compatibility, increase memory limits |
 | Pod OOMKilled | Insufficient memory for converter | OOMKilled in pod status | Increase converter memory via `settings set` |
-| PVC Pending | No default StorageClass | Unbound PVCs from step 8 | Set a default StorageClass |
-| FailedScheduling | Cluster out of resources | Events from step 5, node memory from step 7 | Free resources or scale cluster |
-| Provider not Ready | Lost connectivity to source | Provider status from step 6 | Check credentials, network, TLS |
-| Low throughput | Network/storage bottleneck | Throughput metrics from step 9 | Check network path, storage IOPS |
-| No migration pods | Plan not progressing | Empty pod list from step 4 | Check controller logs from step 3 |
+| PVC Pending | No default StorageClass | Unbound PVCs from step 9 | Set a default StorageClass |
+| FailedScheduling | Cluster out of resources | Events from step 6, node memory from step 8 | Free resources or scale cluster |
+| Provider not Ready | Lost connectivity to source | Provider status from step 7 | Check credentials, network, TLS |
+| Low throughput | Network/storage bottleneck | Throughput metrics from step 10 | Check network path, storage IOPS |
+| No migration pods | Plan not progressing | Empty pod list from step 5 | Check controller logs from step 4 |
 
 **Recommended Actions**:
 - List specific actions the user should take based on the findings

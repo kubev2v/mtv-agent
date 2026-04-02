@@ -8,9 +8,6 @@ tools:
   - metrics_read (server: kubectl-metrics)
   - mtv_read (server: kubectl-mtv)
   - debug_read (server: kubectl-debug-queries)
-skills:
-  - metrics-tool-guide
-  - metrics-query-cookbook
 ---
 
 # Migration Status Report
@@ -97,7 +94,7 @@ For each failed plan, check error logs (the MTV operator namespace is usually
 `openshift-mtv`; if unsure, run `mtv_read health` first to detect it):
 
 ```json
-mtv_read { "command": "health logs", "flags": { "namespace": "<MTV_NAMESPACE>", "filter_plan": "<PLAN_NAME>", "filter_level": "error", "output": "markdown" } }
+debug_read { "command": "logs", "flags": { "name": "deployment/forklift-controller", "namespace": "<MTV_NAMESPACE>", "container": "main", "tail": 200, "query": "where fields.plan ~= '.*<PLAN_NAME>.*' and level = 'ERROR'", "output": "markdown" } }
 ```
 
 Check warning events in the plan's namespace:

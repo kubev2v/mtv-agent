@@ -24,7 +24,7 @@ No user input required -- this playbook auto-detects everything.
 ### Step 1 -- Run MTV health check
 
 ```json
-mtv_read { "command": "health", "flags": { "all_namespaces": true, "output": "markdown" } }
+mtv_read { "command": "health", "flags": { "all_namespaces": true, "skip_logs": true, "output": "markdown" } }
 ```
 
 The output lists MTV components and their status (operator version, pods, providers, plans).
@@ -79,7 +79,7 @@ debug_read { "command": "events", "flags": { "namespace": "<MTV_NAMESPACE>", "qu
 Only run this if step 1 found errors:
 
 ```json
-mtv_read { "command": "health logs", "flags": { "namespace": "<MTV_NAMESPACE>", "filter_level": "error", "output": "markdown" } }
+mtv_read { "command": "health", "flags": { "namespace": "<MTV_NAMESPACE>", "log_lines": 200, "output": "markdown" } }
 ```
 
 Save the error messages for the report.

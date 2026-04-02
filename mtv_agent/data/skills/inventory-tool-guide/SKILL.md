@@ -17,7 +17,7 @@ For field references and ready-to-use queries, load the appropriate per-provider
 1. **`flags` must be a JSON object** — never pass it as a string.
    - Correct: `"flags": {"namespace": "mtv", "output": "markdown"}`
    - Wrong: `"flags": "{namespace: mtv, output: markdown}"`
-2. **Only use documented parameters** — never invent flags like `fields`. Run `mtv_help("get inventory vm")` to see valid flags.
+2. **`fields` is a top-level parameter, not a flag** — use it on `mtv_read` directly (not inside `flags`) to limit response to specific top-level JSON keys (e.g. `fields: ["metadata", "spec"]`). Run `mtv_help` to see valid flags.
 3. **Discovering fields** — use `"output": "json"` with `"query": "limit 1"` to inspect one object and see all available field names.
 4. **oVirt disk types live on a standalone resource** — query `get inventory disk`, not the VM's `diskAttachments`, to find `storageType = 'lun'`.
 5. **EC2 and OVA use PascalCase field names** — unlike vSphere/oVirt/OpenStack which use camelCase.
@@ -42,24 +42,27 @@ For field references and ready-to-use queries, load the appropriate per-provider
 
 | Resource     | vSphere       | oVirt             | OpenStack      | EC2           | OVA | HyperV | OpenShift        |
 | ------------ | ------------- | ----------------- | -------------- | ------------- | --- | ------ | ---------------- |
-| vm           | Y             | Y                 | Y              | Y (instance)  | Y   | Y      | Y                |
-| network      | Y             | Y                 | Y              | Y (subnet)    | Y   | Y      | Y (NAD)          |
-| storage      | Y (datastore) | Y (storageDomain) | Y (volumeType) | Y (EBS types) | Y   | Y      | Y (storageClass) |
-| disk         | --            | Y                 | --             | --            | Y   | Y      | --               |
-| volume       | --            | --                | Y              | Y             | --  | --     | --               |
-| host         | Y             | Y                 | --             | --            | --  | --     | --               |
-| cluster      | Y             | Y                 | --             | --            | --  | --     | --               |
-| datacenter   | Y             | Y                 | --             | --            | --  | --     | --               |
-| folder       | Y             | --                | --             | --            | --  | --     | --               |
-| disk-profile | --            | Y                 | --             | --            | --  | --     | --               |
-| nic-profile  | --            | Y                 | --             | --            | --  | --     | --               |
-| flavor       | --            | --                | Y              | --            | --  | --     | --               |
-| image        | --            | --                | Y              | --            | --  | --     | --               |
-| project      | --            | --                | Y              | --            | --  | --     | --               |
-| subnet       | --            | --                | Y              | --            | --  | --     | --               |
-| namespace    | --            | --                | --             | --            | --  | --     | Y                |
-| pvc          | --            | --                | --             | --            | --  | --     | Y                |
-| data-volume  | --            | --                | --             | --            | --  | --     | Y                |
+| vm             | Y             | Y                 | Y              | Y (ec2-instance)    | Y   | Y      | Y                |
+| network        | Y             | Y                 | Y              | Y (ec2-network)     | Y   | Y      | Y (NAD)          |
+| storage        | Y (datastore) | Y (storageDomain) | Y (volumeType) | Y (ec2-volume-type) | Y   | Y      | Y (storageClass) |
+| disk           | --            | Y                 | --             | --                  | Y   | Y      | --               |
+| volume         | --            | --                | Y              | Y (ec2-volume)      | --  | --     | --               |
+| host           | Y             | Y                 | --             | --                  | --  | --     | --               |
+| cluster        | Y             | Y                 | --             | --                  | --  | --     | --               |
+| datacenter     | Y             | Y                 | --             | --                  | --  | --     | --               |
+| folder         | Y             | --                | --             | --                  | --  | --     | --               |
+| resource-pool  | Y             | --                | --             | --                  | --  | --     | --               |
+| disk-profile   | --            | Y                 | --             | --                  | --  | --     | --               |
+| nic-profile    | --            | Y                 | --             | --                  | --  | --     | --               |
+| flavor         | --            | --                | Y              | --                  | --  | --     | --               |
+| image          | --            | --                | Y              | --                  | --  | --     | --               |
+| project        | --            | --                | Y              | --                  | --  | --     | --               |
+| subnet         | --            | --                | Y              | --                  | --  | --     | --               |
+| snapshot       | --            | --                | Y              | --                  | --  | --     | --               |
+| volumetype     | --            | --                | Y              | --                  | --  | --     | --               |
+| namespace      | --            | --                | --             | --                  | --  | --     | Y                |
+| pvc            | --            | --                | --             | --                  | --  | --     | Y                |
+| data-volume    | --            | --                | --             | --                  | --  | --     | Y                |
 
 ---
 

@@ -30,7 +30,8 @@ SYSTEM_PROMPT_BASE = (
     'Wrong:   `{"flags": "{namespace: mtv-test}"}`\n'
     "\n"
     "Only use parameters documented by the tool or returned by the help tool. "
-    "Never invent parameters (e.g. there is no `fields` flag).\n"
+    "Note: `fields` is a top-level parameter on `mtv_read` (not inside `flags`). "
+    'It filters top-level JSON keys (e.g. ["metadata", "spec", "status"]).\n'
     "\n"
     "## Output Format Preference\n"
     "When a tool supports an output/format flag, prefer formats in this order:\n"

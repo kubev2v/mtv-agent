@@ -26,6 +26,9 @@ Always call `mtv_help` before constructing an unfamiliar command to get the corr
 
 ## Translating MCP Tool Calls to CLI Commands
 
+> **Note for human users**: This section translates MCP tool calls into equivalent
+> `kubectl mtv` CLI commands you can run manually in your terminal.
+
 When showing users the equivalent CLI command, follow these rules.
 
 ### Rule 1: Base command
