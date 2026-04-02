@@ -34,7 +34,8 @@ and tell the user which provider you are using.
 **IF multiple source providers exist**: list them and **ASK the user** which one to use.
 Do NOT pick one for the user.
 **IF no source providers exist**: tell the user no source providers are configured.
-Suggest running the `create-vsphere-provider` playbook first. Stop here.
+Suggest creating a source provider first (e.g. the `create-vsphere-provider` playbook
+for vSphere, or `mtv_help("create provider")` for other provider types). Stop here.
 
 ### Step 2 -- Determine filtering
 

@@ -8,9 +8,6 @@ tools:
   - metrics_read (server: kubectl-metrics)
   - mtv_read (server: kubectl-mtv)
   - debug_read (server: kubectl-debug-queries)
-skills:
-  - metrics-tool-guide
-  - metrics-query-cookbook
 ---
 
 # Show Migration Network Traffic

@@ -8,9 +8,6 @@ description: >
 tools:
   - metrics_read (server: kubectl-metrics)
   - debug_read (server: kubectl-debug-queries)
-skills:
-  - metrics-tool-guide
-  - metrics-query-cookbook
 ---
 
 # Check Cluster Health

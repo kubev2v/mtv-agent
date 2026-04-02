@@ -8,9 +8,6 @@ tools:
   - mtv_read (server: kubectl-mtv)
   - metrics_read (server: kubectl-metrics)
   - debug_read (server: kubectl-debug-queries)
-skills:
-  - metrics-tool-guide
-  - metrics-query-cookbook
 ---
 
 # Monitor Migration Plan
@@ -113,55 +110,10 @@ or MTV metrics are not configured. Note this in the report but continue.
 **IF throughput is near zero but migration shows Running**: possible stall --
 investigate pods in step 7.
 
-### Step 6 -- Check migration pod network traffic over migration window
+### Step 6 -- Detailed pod network traffic (optional)
 
-First, discover migration pods and the nodes they run on.
-
-VMware/general migration pods (carry a `plan` label):
-
-```json
-debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "selector": "plan", "output": "markdown" } }
-```
-
-oVirt/OpenStack populator pods (named `populate-{uuid}-...`):
-
-```json
-debug_read { "command": "list", "flags": { "resource": "pods", "namespace": "<NAMESPACE>", "query": "where name ~= '^populate-'", "output": "markdown" } }
-```
-
-Then query container-level network traffic for the discovered pods (`<PODS>` = `pod1|pod2|...`):
-
-```json
-metrics_read { "command": "query_range", "flags": { "query": "sum by (pod)(rate(container_network_receive_bytes_total{namespace=\"<NAMESPACE>\",pod=~\"<PODS>\"}[5m]))", "start": "<START>", "end": "<END>", "step": "60s", "output": "markdown" } }
-```
-
-```json
-metrics_read { "command": "query_range", "flags": { "query": "sum by (pod)(rate(container_network_transmit_bytes_total{namespace=\"<NAMESPACE>\",pod=~\"<PODS>\"}[5m]))", "start": "<START>", "end": "<END>", "step": "60s", "output": "markdown" } }
-```
-
-**IF no data**: Short-lived pods (~under 60 seconds, such as oVirt/OpenStack populator pods)
-may complete before cadvisor establishes network namespace tracking. Use node-level metrics
-as a fallback -- query the node where the pod ran:
-
-```json
-metrics_read {
-  "command": "query_range",
-  "flags": {
-    "query": [
-      "instance:node_network_receive_bytes_excluding_lo:rate1m{instance=~\"<NODE_NAME>.*\"}",
-      "instance:node_network_transmit_bytes_excluding_lo:rate1m{instance=~\"<NODE_NAME>.*\"}"
-    ],
-    "name": ["node_rx", "node_tx"],
-    "start": "<START>",
-    "end": "<END>",
-    "step": "30s",
-    "output": "markdown"
-  }
-}
-```
-
-Compare against baseline before/after the migration window. Note that node-level metrics
-include all traffic on that node, not only migration traffic.
+For per-pod network RX/TX analysis, run the `show-migration-network-traffic` playbook
+with the same namespace and plan name.
 
 ### Step 7 -- Investigate failed or stuck VMs (conditional)
 
@@ -188,7 +140,7 @@ debug_read { "command": "events", "flags": { "namespace": "<NAMESPACE>", "query"
 Check controller logs for the plan:
 
 ```json
-mtv_read { "command": "health logs", "flags": { "namespace": "<MTV_NAMESPACE>", "filter_plan": "<PLAN_NAME>", "filter_level": "error", "output": "markdown" } }
+debug_read { "command": "logs", "flags": { "name": "deployment/forklift-controller", "namespace": "<MTV_NAMESPACE>", "container": "main", "tail": 200, "query": "where fields.plan ~= '.*<PLAN_NAME>.*' and level = 'ERROR'", "output": "markdown" } }
 ```
 
 ### Step 8 -- Report
