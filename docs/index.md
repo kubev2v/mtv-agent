@@ -27,5 +27,6 @@ Fact-oriented lookup pages for CLI flags, configuration keys, and API endpoints.
 For contributors working from a git checkout of the repository.
 
 - [Development](development.md) -- source setup, Make targets, linting, packaging, and project structure
+- [Publishing](publishing.md) -- building and releasing to PyPI
 - [Web UI](../web/README.md) -- frontend architecture, Lit components, themes, and API communication
 - [MCP Metrics Issues](mcp-metrics-issues.md) -- known issues in the kubectl-metrics MCP server
