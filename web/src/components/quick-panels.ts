@@ -16,23 +16,15 @@ interface TablePanelDef {
   buildArgs: () => Record<string, unknown>;
 }
 
-interface GraphPanelDef {
-  label: string;
-  kind: "graph";
-  presets: string[];
-  start: string;
-}
-
 interface QueryGraphPanelDef {
   label: string;
   kind: "query-graph";
-  queries: string[];
-  names: string[];
+  buildQueries: () => { queries: string[]; names: string[] };
   start: string;
   step: string;
 }
 
-type PanelDef = TablePanelDef | GraphPanelDef | QueryGraphPanelDef;
+type PanelDef = TablePanelDef | QueryGraphPanelDef;
 
 function nsFlags(): Record<string, unknown> {
   const ctx = appState.state.context;
@@ -40,8 +32,85 @@ function nsFlags(): Record<string, unknown> {
   return { all_namespaces: true };
 }
 
-function presetArgs(name: string, start: string): Record<string, unknown> {
-  return { command: "preset", flags: { name, start, output: "markdown" } };
+function ctxNamespace(): string | undefined {
+  return appState.state.context["namespace"] || undefined;
+}
+
+function buildMetricItems(start: string, step: string): QueryGraphPanelDef[] {
+  return [
+    {
+      label: "Network RX/TX",
+      kind: "query-graph",
+      buildQueries: () => {
+        const ns = ctxNamespace();
+        const group = ns ? "pod" : "namespace";
+        const filter = ns ? `{namespace="${ns}"}` : "";
+        return {
+          queries: [
+            `topk(10, sum by (${group})(rate(container_network_receive_bytes_total${filter}[5m])))`,
+            `topk(10, sum by (${group})(rate(container_network_transmit_bytes_total${filter}[5m])))`,
+          ],
+          names: ["rx", "tx"],
+        };
+      },
+      start,
+      step,
+    },
+    {
+      label: "CPU / Memory",
+      kind: "query-graph",
+      buildQueries: () => {
+        const ns = ctxNamespace();
+        const group = ns ? "pod" : "namespace";
+        const filter = ns ? `{namespace="${ns}"}` : "";
+        return {
+          queries: [
+            `topk(10, sum by (${group})(rate(container_cpu_usage_seconds_total${filter}[5m])))`,
+            `topk(10, sum by (${group})(container_memory_working_set_bytes${filter}))`,
+          ],
+          names: ["cpu", "memory"],
+        };
+      },
+      start,
+      step,
+    },
+    {
+      label: "Network Total",
+      kind: "query-graph",
+      buildQueries: () => {
+        const ns = ctxNamespace();
+        const scope = ns ?? "all";
+        const filter = ns ? `{namespace="${ns}"}` : "";
+        return {
+          queries: [
+            `sum(rate(container_network_receive_bytes_total${filter}[5m]))`,
+            `sum(rate(container_network_transmit_bytes_total${filter}[5m]))`,
+          ],
+          names: [`total rx (${scope})`, `total tx (${scope})`],
+        };
+      },
+      start,
+      step,
+    },
+    {
+      label: "CPU / Mem Total",
+      kind: "query-graph",
+      buildQueries: () => {
+        const ns = ctxNamespace();
+        const scope = ns ?? "all";
+        const filter = ns ? `{namespace="${ns}"}` : "";
+        return {
+          queries: [
+            `sum(rate(container_cpu_usage_seconds_total${filter}[5m]))`,
+            `sum(container_memory_working_set_bytes${filter})`,
+          ],
+          names: [`total cpu (${scope})`, `total mem (${scope})`],
+        };
+      },
+      start,
+      step,
+    },
+  ];
 }
 
 const SECTIONS: { heading: string; items: PanelDef[] }[] = [
@@ -85,88 +154,13 @@ const SECTIONS: { heading: string; items: PanelDef[] }[] = [
   },
   {
     heading: "Metrics (2 h)",
-    items: [
-      {
-        label: "Network RX/TX",
-        kind: "graph",
-        presets: ["namespace_network_rx", "namespace_network_tx"],
-        start: "-2h",
-      },
-      {
-        label: "CPU / Memory",
-        kind: "graph",
-        presets: ["namespace_cpu_usage", "namespace_memory_usage"],
-        start: "-2h",
-      },
-      {
-        label: "Network Total",
-        kind: "query-graph",
-        queries: [
-          "sum(rate(container_network_receive_bytes_total[5m]))",
-          "sum(rate(container_network_transmit_bytes_total[5m]))",
-        ],
-        names: ["rx", "tx"],
-        start: "-2h",
-        step: "60s",
-      },
-      {
-        label: "CPU / Mem Total",
-        kind: "query-graph",
-        queries: [
-          "sum(rate(container_cpu_usage_seconds_total[5m]))",
-          "sum(container_memory_working_set_bytes)",
-        ],
-        names: ["cpu", "memory"],
-        start: "-2h",
-        step: "60s",
-      },
-    ],
+    items: [...buildMetricItems("-2h", "60s")],
   },
   {
     heading: "Metrics (24 h)",
-    items: [
-      {
-        label: "Network RX/TX",
-        kind: "graph",
-        presets: ["namespace_network_rx", "namespace_network_tx"],
-        start: "-24h",
-      },
-      {
-        label: "CPU / Memory",
-        kind: "graph",
-        presets: ["namespace_cpu_usage", "namespace_memory_usage"],
-        start: "-24h",
-      },
-      {
-        label: "Network Total",
-        kind: "query-graph",
-        queries: [
-          "sum(rate(container_network_receive_bytes_total[5m]))",
-          "sum(rate(container_network_transmit_bytes_total[5m]))",
-        ],
-        names: ["rx", "tx"],
-        start: "-24h",
-        step: "300s",
-      },
-      {
-        label: "CPU / Mem Total",
-        kind: "query-graph",
-        queries: [
-          "sum(rate(container_cpu_usage_seconds_total[5m]))",
-          "sum(container_memory_working_set_bytes)",
-        ],
-        names: ["cpu", "memory"],
-        start: "-24h",
-        step: "300s",
-      },
-    ],
+    items: [...buildMetricItems("-24h", "300s")],
   },
 ];
-
-/** Stable id for a combined-preset graph card. */
-function graphCardId(presets: string[], start: string): string {
-  return `graph-${cardId("metrics_read", { presets, start })}`;
-}
 
 @customElement("quick-panels")
 export class QuickPanels extends LitElement {
@@ -300,8 +294,6 @@ export class QuickPanels extends LitElement {
 
     if (def.kind === "table") {
       await this.openTablePanel(def);
-    } else if (def.kind === "graph") {
-      await this.openGraphPanel(def);
     } else {
       await this.openQueryGraphPanel(def);
     }
@@ -344,61 +336,29 @@ export class QuickPanels extends LitElement {
     }
   }
 
-  /** Fetch all presets in parallel and merge into a single graph card. */
-  private async openGraphPanel(def: GraphPanelDef) {
-    const id = graphCardId(def.presets, def.start);
-    if (appState.hasCard(id)) return;
-
-    const firstArgs = presetArgs(def.presets[0], def.start);
-    const card: PinCard = {
-      id,
-      title: def.label + ` (${def.start.replace("-", "")})`,
-      content: "",
-      timestamp: Date.now(),
-      toolName: "metrics_read",
-      toolArgs: firstArgs,
-      graphPresets: { presets: def.presets, start: def.start },
-      type: "graph" as CardDisplayType,
-      loading: true,
-    };
-
-    appState.addCard(card);
-    if (!appState.state.detailPaneOpen) {
-      appState.update({ detailPaneOpen: true });
-    }
-
-    try {
-      const results = await Promise.all(
-        def.presets.map((name) => callTool("metrics_read", presetArgs(name, def.start))),
-      );
-      const combined = results.map((r) => r.result).join("\n\n");
-      appState.updateCard(id, { content: combined, loading: false });
-    } catch (err) {
-      appState.updateCard(id, {
-        content: `**Error:** ${(err as Error).message}`,
-        loading: false,
-      });
-    }
-  }
-
-  /** Single query_range call with multiple PromQL queries → one line per series. */
+  /** Single query_range call with multiple PromQL queries -> one line per series. */
   private async openQueryGraphPanel(def: QueryGraphPanelDef) {
+    const { queries, names } = def.buildQueries();
+    const ns = ctxNamespace();
     const args: Record<string, unknown> = {
       command: "query_range",
       flags: {
-        query: def.queries,
-        name: def.names,
+        query: queries,
+        name: names,
         start: def.start,
         step: def.step,
-        output: "markdown",
+        output: "tsv",
       },
     };
     const id = `graph-${cardId("metrics_read", args)}`;
     if (appState.hasCard(id)) return;
 
+    const suffix = def.start.replace("-", "");
+    const title = ns ? `${def.label} [${ns}] (${suffix})` : `${def.label} (${suffix})`;
+
     const card: PinCard = {
       id,
-      title: def.label + ` (${def.start.replace("-", "")})`,
+      title,
       content: "",
       timestamp: Date.now(),
       toolName: "metrics_read",

@@ -44,7 +44,11 @@ export function extractSeries(
       const valRaw = row[vc.idx]?.trim();
       if (!tsRaw || !valRaw) continue;
 
-      const ts = Date.parse(tsRaw);
+      let ts = Date.parse(tsRaw);
+      if (isNaN(ts)) {
+        const num = Number(tsRaw);
+        if (!isNaN(num)) ts = num < 1e12 ? num * 1000 : num;
+      }
       const val = parseSINumber(valRaw);
       if (isNaN(ts) || isNaN(val)) continue;
       points.push({ x: ts, y: val });

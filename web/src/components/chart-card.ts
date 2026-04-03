@@ -107,6 +107,12 @@ export class ChartCard extends LitElement {
       background: var(--text-tertiary, #666) !important;
     }
 
+    .legend-item.toggle-all {
+      border-color: var(--border-secondary, rgba(128, 128, 128, 0.15));
+      font-size: 10px;
+      font-family: var(--font-mono, monospace);
+    }
+
     .legend-swatch {
       width: 10px;
       height: 3px;
@@ -380,6 +386,21 @@ export class ChartCard extends LitElement {
     }
   }
 
+  private toggleAllSeries() {
+    const parsed = this.parsed;
+    if (!parsed) return;
+    const total = parsed.series.length;
+    const allHidden = this.hiddenSeries.size === total;
+    this.hiddenSeries = allHidden ? new Set() : new Set(Array.from({ length: total }, (_, i) => i));
+
+    if (this.chart) {
+      for (let i = 0; i < total; i++) {
+        this.chart.getDatasetMeta(i).hidden = !allHidden;
+      }
+      this.chart.update("none");
+    }
+  }
+
   private applyZoom(preset: ZoomPreset) {
     this.activeZoom = preset.label;
     if (!this.chart) return;
@@ -399,18 +420,28 @@ export class ChartCard extends LitElement {
   }
 
   private renderLegend(parsed: TimeSeriesData) {
-    return parsed.series.map(
-      (s, i) => html`
-        <button
-          class="legend-item ${this.hiddenSeries.has(i) ? "hidden" : ""}"
-          @click=${() => this.toggleSeries(i)}
-          title="${this.hiddenSeries.has(i) ? "Show" : "Hide"} ${s.name}"
-        >
-          <span class="legend-swatch" style="background:${PALETTE[i % PALETTE.length]}"></span>
-          ${s.name}
-        </button>
-      `,
-    );
+    const allHidden = this.hiddenSeries.size === parsed.series.length;
+    return html`
+      <button
+        class="legend-item toggle-all"
+        @click=${() => this.toggleAllSeries()}
+        title="${allHidden ? "Show all series" : "Hide all series"}"
+      >
+        ${allHidden ? "Show all" : "Hide all"}
+      </button>
+      ${parsed.series.map(
+        (s, i) => html`
+          <button
+            class="legend-item ${this.hiddenSeries.has(i) ? "hidden" : ""}"
+            @click=${() => this.toggleSeries(i)}
+            title="${this.hiddenSeries.has(i) ? "Show" : "Hide"} ${s.name}"
+          >
+            <span class="legend-swatch" style="background:${PALETTE[i % PALETTE.length]}"></span>
+            ${s.name}
+          </button>
+        `,
+      )}
+    `;
   }
 
   private renderZoomControls() {
