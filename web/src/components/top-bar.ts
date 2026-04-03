@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { appState } from "../state/app-state.js";
+import "./namespace-picker/namespace-picker.js";
 
 @customElement("top-bar")
 export class TopBar extends LitElement {
@@ -122,6 +123,8 @@ export class TopBar extends LitElement {
         </svg>
         <span class="title">Forklift</span>
       </div>
+
+      <namespace-picker></namespace-picker>
 
       <div class="spacer"></div>
 
