@@ -598,7 +598,7 @@ wheels = [
 
 [[package]]
 name = "mtv-agent"
-version = "0.1.21"
+version = "0.1.22"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
