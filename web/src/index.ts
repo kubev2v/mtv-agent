@@ -13,6 +13,7 @@ import "./components/context-editor.js";
 import "./components/model-selector.js";
 import "./components/mcp-manager.js";
 import "./components/theme-picker.js";
+import "./components/quick-panels.js";
 import "./components/top-bar.js";
 import "./components/resize-handle.js";
 import "./components/card-search-bar.js";
