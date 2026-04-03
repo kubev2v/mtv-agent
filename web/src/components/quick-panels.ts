@@ -49,6 +49,12 @@ const SECTIONS: { heading: string; items: PanelDef[] }[] = [
     heading: "Resources",
     items: [
       {
+        label: "Health",
+        kind: "table",
+        toolName: "mtv_read",
+        buildArgs: () => ({ command: "health" }),
+      },
+      {
         label: "Providers",
         kind: "table",
         toolName: "mtv_read",
@@ -64,6 +70,15 @@ const SECTIONS: { heading: string; items: PanelDef[] }[] = [
         buildArgs: () => ({
           command: "get plan",
           flags: { ...nsFlags(), output: "markdown" },
+        }),
+      },
+      {
+        label: "Plans (VMs)",
+        kind: "table",
+        toolName: "mtv_read",
+        buildArgs: () => ({
+          command: "get plan",
+          flags: { ...nsFlags(), "vms-table": true, output: "markdown" },
         }),
       },
     ],
@@ -297,10 +312,9 @@ export class QuickPanels extends LitElement {
     const id = cardId(def.toolName, args);
     if (appState.hasCard(id)) return;
 
-    const command = args.command as string;
     const card: PinCard = {
       id,
-      title: `${def.toolName}: ${command}`,
+      title: `${def.toolName}: ${def.label}`,
       content: "",
       timestamp: Date.now(),
       toolName: def.toolName,
@@ -343,6 +357,7 @@ export class QuickPanels extends LitElement {
       timestamp: Date.now(),
       toolName: "metrics_read",
       toolArgs: firstArgs,
+      graphPresets: { presets: def.presets, start: def.start },
       type: "graph" as CardDisplayType,
       loading: true,
     };

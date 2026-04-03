@@ -1,8 +1,11 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { appState, type PinCard } from "../state/app-state.js";
+import { autoRefreshManager } from "../state/auto-refresh-state.js";
 import { callTool } from "../services/api-client.js";
 import { identify, parseResult, type CardDisplayType } from "../utils/tool-registry/index.js";
+import { formatTimeAgo } from "../utils/format-time-ago.js";
+import { TimeTicker } from "../utils/time-ticker.js";
 import {
   applyHighlights,
   clearHighlights,
@@ -108,6 +111,10 @@ export class DetailPane extends LitElement {
       color: var(--text-tertiary);
     }
 
+    .header-btn.minimize:hover {
+      color: var(--accent-warning);
+    }
+
     .header-btn.close:hover {
       color: var(--accent-danger);
     }
@@ -119,6 +126,29 @@ export class DetailPane extends LitElement {
     .header-btn.rerunning {
       color: var(--accent-info);
       animation: spin 1s linear infinite;
+    }
+
+    .header-btn.auto-refresh {
+      color: var(--text-tertiary);
+    }
+
+    .header-btn.auto-refresh:hover {
+      color: var(--accent-info);
+    }
+
+    .header-btn.auto-refresh.active {
+      color: var(--accent-info);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
     }
 
     .header-btn.copy.copied {
@@ -332,36 +362,99 @@ export class DetailPane extends LitElement {
   private static readonly DEFAULT_CARD_HEIGHT = 400;
   private static readonly MIN_CARD_HEIGHT = 80;
 
+  private ticker = new TimeTicker(this);
+
   @state() private cards: PinCard[] = [];
   @state() private expandedToolStrips = new Set<string>();
   @state() private rerunningCards = new Set<string>();
   @state() private copiedCards = new Set<string>();
   @state() private searchOpen = new Set<string>();
   @state() private searchState = new Map<string, SearchState>();
+  @state() private minimizedCards = new Set<string>();
 
   private dragId: string | null = null;
   private resizeCardId: string | null = null;
   private resizeStartY = 0;
   private resizeStartHeight = 0;
   private unsubscribe?: () => void;
+  private unsubscribeRefresh?: () => void;
+  private refreshTimers = new Map<string, ReturnType<typeof setInterval>>();
 
   connectedCallback() {
     super.connectedCallback();
     this.unsubscribe = appState.subscribe(() => {
       this.cards = appState.state.pinCards;
+      this.reconcileRefreshTimers();
+    });
+    this.unsubscribeRefresh = autoRefreshManager.subscribe(() => {
+      this.restartAllRefreshTimers();
     });
     this.cards = appState.state.pinCards;
+    this.reconcileRefreshTimers();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.unsubscribe?.();
+    this.unsubscribeRefresh?.();
+    this.clearAllRefreshTimers();
     document.removeEventListener("mousemove", this.onResizeMove);
     document.removeEventListener("mouseup", this.onResizeEnd);
   }
 
+  // --- auto-refresh timer management ----------------------------------------
+
+  private reconcileRefreshTimers() {
+    const intervalMs = autoRefreshManager.intervalSec * 1000;
+    const wanted = new Map(
+      this.cards.filter((c) => c.autoRefresh && c.toolName).map((c) => [c.id, intervalMs] as const),
+    );
+
+    for (const [id, timer] of this.refreshTimers) {
+      if (!wanted.has(id)) {
+        clearInterval(timer);
+        this.refreshTimers.delete(id);
+      }
+    }
+
+    for (const [id] of wanted) {
+      if (this.refreshTimers.has(id)) continue;
+      const timer = setInterval(() => {
+        const card = appState.state.pinCards.find((c) => c.id === id);
+        if (card?.autoRefresh && card.toolName) {
+          this.rerunTool(card);
+        }
+      }, intervalMs);
+      this.refreshTimers.set(id, timer);
+    }
+  }
+
+  /** Called when the global interval changes -- restart all active timers. */
+  private restartAllRefreshTimers() {
+    this.clearAllRefreshTimers();
+    this.reconcileRefreshTimers();
+  }
+
+  private clearAllRefreshTimers() {
+    for (const timer of this.refreshTimers.values()) {
+      clearInterval(timer);
+    }
+    this.refreshTimers.clear();
+  }
+
+  private toggleAutoRefresh(card: PinCard) {
+    appState.updateCard(card.id, { autoRefresh: !card.autoRefresh });
+  }
+
   private close(id: string) {
     appState.removeCard(id);
+  }
+
+  private toggleMinimize(id: string) {
+    const next = new Set(this.minimizedCards);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    this.minimizedCards = next;
   }
 
   private async copyCard(card: PinCard) {
@@ -395,31 +488,49 @@ export class DetailPane extends LitElement {
     this.rerunningCards = next;
 
     try {
-      const resp = await callTool(card.toolName, card.toolArgs ?? {});
       appState.updateCard(card.id, { loading: true });
 
-      await new Promise<void>((resolve) =>
-        setTimeout(() => {
-          if (card.type === "graph") {
-            appState.updateCard(card.id, {
-              content: resp.result,
-              loading: false,
-              timestamp: Date.now(),
-            });
-          } else {
-            const id = identify(card.toolName!, card.toolArgs ?? {});
-            const parsed = parseResult(id, resp.result);
-            const type = id.canPinGraph ? ("text" as CardDisplayType) : parsed.displayType;
-            appState.updateCard(card.id, {
-              content: parsed.content,
-              type,
-              loading: false,
-              timestamp: Date.now(),
-            });
-          }
-          resolve();
-        }, 0),
-      );
+      if (card.type === "graph" && card.graphPresets) {
+        const { presets, start } = card.graphPresets;
+        const results = await Promise.all(
+          presets.map((name) =>
+            callTool("metrics_read", {
+              command: "preset",
+              flags: { name, start, output: "markdown" },
+            }),
+          ),
+        );
+        const combined = results.map((r) => r.result).join("\n\n");
+        appState.updateCard(card.id, {
+          content: combined,
+          loading: false,
+          timestamp: Date.now(),
+        });
+      } else {
+        const resp = await callTool(card.toolName, card.toolArgs ?? {});
+        await new Promise<void>((resolve) =>
+          setTimeout(() => {
+            if (card.type === "graph") {
+              appState.updateCard(card.id, {
+                content: resp.result,
+                loading: false,
+                timestamp: Date.now(),
+              });
+            } else {
+              const id = identify(card.toolName!, card.toolArgs ?? {});
+              const parsed = parseResult(id, resp.result);
+              const type = id.canPinGraph ? ("text" as CardDisplayType) : parsed.displayType;
+              appState.updateCard(card.id, {
+                content: parsed.content,
+                type,
+                loading: false,
+                timestamp: Date.now(),
+              });
+            }
+            resolve();
+          }, 0),
+        );
+      }
     } catch (err) {
       appState.updateCard(card.id, {
         content: `**Error re-running tool:** ${(err as Error).message}`,
@@ -520,20 +631,6 @@ export class DetailPane extends LitElement {
     document.removeEventListener("mousemove", this.onResizeMove);
     document.removeEventListener("mouseup", this.onResizeEnd);
   };
-
-  // --- timestamp formatting ------------------------------------------------
-
-  private formatTimeAgo(ts: number): string {
-    const seconds = Math.floor((Date.now() - ts) / 1000);
-    if (seconds < 5) return "just now";
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  }
 
   // --- card search --------------------------------------------------------
 
@@ -694,6 +791,36 @@ export class DetailPane extends LitElement {
     `;
   }
 
+  private renderAutoRefreshButton(card: PinCard) {
+    if (!card.toolName) return nothing;
+    const active = card.autoRefresh === true;
+
+    return html`
+      <button
+        class="header-btn auto-refresh ${active ? "active" : ""}"
+        title=${active ? "Stop auto-refresh" : "Start auto-refresh"}
+        aria-label=${active ? "Stop auto-refresh" : "Start auto-refresh"}
+        aria-pressed=${active ? "true" : "false"}
+        @click=${(ev: Event) => {
+          ev.stopPropagation();
+          this.toggleAutoRefresh(card);
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      </button>
+    `;
+  }
+
   private renderSearchBar(card: PinCard) {
     if (!this.searchOpen.has(card.id)) return nothing;
     const s = this.searchState.get(card.id);
@@ -709,7 +836,43 @@ export class DetailPane extends LitElement {
     `;
   }
 
+  private renderMinimizeButton(card: PinCard) {
+    const minimized = this.minimizedCards.has(card.id);
+    return html`
+      <button
+        class="header-btn minimize"
+        title=${minimized ? "Expand card" : "Minimize card"}
+        aria-label=${minimized ? "Expand card" : "Minimize card"}
+        aria-expanded=${minimized ? "false" : "true"}
+        @click=${() => this.toggleMinimize(card.id)}
+      >
+        ${minimized
+          ? html`<svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="18 15 12 9 6 15" />
+            </svg>`
+          : html`<svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>`}
+      </button>
+    `;
+  }
+
   private renderCard(card: PinCard) {
+    const minimized = this.minimizedCards.has(card.id);
     return html`
       <div
         class="card"
@@ -757,26 +920,30 @@ export class DetailPane extends LitElement {
           </button>
           <span class="card-title" title=${card.title}>${card.title}</span>
           <span class="timestamp" title=${new Date(card.timestamp).toLocaleString()}
-            >${this.formatTimeAgo(card.timestamp)}</span
+            >${formatTimeAgo(card.timestamp)}</span
           >
-          <button
-            class="header-btn search"
-            title="Search"
-            @click=${() => this.toggleSearch(card.id)}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </button>
-          ${this.renderRerunButton(card)}
+          ${minimized
+            ? nothing
+            : html`<button
+                class="header-btn search"
+                title="Search"
+                @click=${() => this.toggleSearch(card.id)}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </button>`}
+          ${minimized ? nothing : this.renderRerunButton(card)}
+          ${minimized ? nothing : this.renderAutoRefreshButton(card)}
+          ${this.renderMinimizeButton(card)}
           <button class="header-btn close" title="Close" @click=${() => this.close(card.id)}>
             <svg
               viewBox="0 0 24 24"
@@ -791,29 +958,33 @@ export class DetailPane extends LitElement {
             </svg>
           </button>
         </div>
-        ${this.renderSearchBar(card)} ${this.renderToolStrip(card)}
-        <div
-          class="card-body ${card.type === "graph" ? "no-scroll" : ""}"
-          data-card-id=${card.id}
-          style="height: ${card.height ?? DetailPane.DEFAULT_CARD_HEIGHT}px"
-        >
-          ${card.loading
-            ? html`<div class="card-loading">
-                <span class="card-loading-dot"></span>
-                <span class="card-loading-dot"></span>
-                <span class="card-loading-dot"></span>
-                <span>Preparing&hellip;</span>
-              </div>`
-            : card.type === "graph"
-              ? html`<chart-card .content=${card.content}></chart-card>`
-              : card.type === "text"
-                ? html`<text-renderer .content=${card.content}></text-renderer>`
-                : html`<markdown-renderer .content=${card.content}></markdown-renderer>`}
-        </div>
-        <div
-          class="resize-grip"
-          @mousedown=${(ev: MouseEvent) => this.onResizeStart(card.id, ev)}
-        ></div>
+        ${minimized
+          ? nothing
+          : html`
+              ${this.renderSearchBar(card)} ${this.renderToolStrip(card)}
+              <div
+                class="card-body ${card.type === "graph" ? "no-scroll" : ""}"
+                data-card-id=${card.id}
+                style="height: ${card.height ?? DetailPane.DEFAULT_CARD_HEIGHT}px"
+              >
+                ${card.loading
+                  ? html`<div class="card-loading">
+                      <span class="card-loading-dot"></span>
+                      <span class="card-loading-dot"></span>
+                      <span class="card-loading-dot"></span>
+                      <span>Preparing&hellip;</span>
+                    </div>`
+                  : card.type === "graph"
+                    ? html`<chart-card .content=${card.content}></chart-card>`
+                    : card.type === "text"
+                      ? html`<text-renderer .content=${card.content}></text-renderer>`
+                      : html`<markdown-renderer .content=${card.content}></markdown-renderer>`}
+              </div>
+              <div
+                class="resize-grip"
+                @mousedown=${(ev: MouseEvent) => this.onResizeStart(card.id, ev)}
+              ></div>
+            `}
       </div>
     `;
   }

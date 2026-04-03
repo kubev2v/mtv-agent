@@ -19,3 +19,4 @@ import "./components/resize-handle.js";
 import "./components/card-search-bar.js";
 import "./components/chart-card.js";
 import "./components/detail-pane.js";
+import "./components/auto-refresh-settings.js";
