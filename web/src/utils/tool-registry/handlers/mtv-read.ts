@@ -58,7 +58,7 @@ const health: ToolHandler = {
   server: SERVER,
   tool: TOOL,
   category: "health",
-  renderer: "text",
+  renderer: "markdown",
   canPin: true,
   canPinGraph: false,
 

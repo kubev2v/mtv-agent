@@ -56,8 +56,11 @@ export interface PinCard {
   height?: number;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
+  /** For multi-preset graph cards: the full list of presets + start param. */
+  graphPresets?: { presets: string[]; start: string };
   type?: CardDisplayType;
   loading?: boolean;
+  autoRefresh?: boolean;
 }
 
 export interface AppStateData {

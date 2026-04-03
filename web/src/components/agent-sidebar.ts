@@ -1,6 +1,9 @@
 import { LitElement, html, css } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { appState, type ChatSummary } from "../state/app-state.js";
+import { formatTimeAgo } from "../utils/format-time-ago.js";
+import { TimeTicker } from "../utils/time-ticker.js";
+import "./auto-refresh-settings.js";
 
 @customElement("agent-sidebar")
 export class AgentSidebar extends LitElement {
@@ -277,6 +280,8 @@ export class AgentSidebar extends LitElement {
     }
   `;
 
+  private ticker = new TimeTicker(this);
+
   @state() private model = "";
   @state() private toolCount = 0;
   @state() private contextWindow = 0;
@@ -293,6 +298,7 @@ export class AgentSidebar extends LitElement {
     skills: false,
     context: false,
     policies: false,
+    settings: false,
   };
 
   private unsubscribe?: () => void;
@@ -367,17 +373,6 @@ export class AgentSidebar extends LitElement {
     `;
   }
 
-  private relativeTime(ts: number): string {
-    const secs = Math.floor(Date.now() / 1000 - ts);
-    if (secs < 60) return "just now";
-    const mins = Math.floor(secs / 60);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
-  }
-
   render() {
     return html`
       <div class="body">
@@ -427,7 +422,7 @@ export class AgentSidebar extends LitElement {
                         </span>
                         <span class="chat-item-title">${c.title}</span>
                         <span class="chat-item-trailing">
-                          <span class="chat-item-time">${this.relativeTime(c.updatedAt)}</span>
+                          <span class="chat-item-time">${formatTimeAgo(c.updatedAt * 1000)}</span>
                           <button
                             class="chat-item-delete"
                             title="Delete chat"
@@ -489,6 +484,11 @@ export class AgentSidebar extends LitElement {
           "policies",
           "Tool Policies",
           html`<tool-policy-editor></tool-policy-editor>`,
+        )}
+        ${this.renderAccordion(
+          "settings",
+          "Settings",
+          html`<auto-refresh-settings></auto-refresh-settings>`,
         )}
       </div>
     `;
