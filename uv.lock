@@ -209,16 +209,16 @@ wheels = [
 
 [[package]]
 name = "claude-openai-proxy"
-version = "0.1.2"
+version = "0.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/6a/1ba6d0213fbd25f7a4ad104ef9d916e254a6224a9604fadffa2a9f730906/claude_openai_proxy-0.1.2.tar.gz", hash = "sha256:3acccb86070f757907ed2f02a080821dadfedd5506809a063b8311425ea8fa89", size = 58775, upload-time = "2026-03-13T14:27:41.364Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/40/f267d3a14b919b0d63c74e770887bb6ab4ef970ab0207b11e9444c370ae3/claude_openai_proxy-0.1.3.tar.gz", hash = "sha256:a52eb9c39339059477da0d50b38ef56a27714dec2c2b4bc0661a928a7bd80039", size = 60921, upload-time = "2026-04-03T07:51:24.638Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/2f/6f58199a600773d33dc6af10c1192c763c23dfe9821b138757f6148e43de/claude_openai_proxy-0.1.2-py3-none-any.whl", hash = "sha256:c403f5e966139884ee6c667a943fcb5f5a29c1a486a86a7bc1230b3ed27d965d", size = 18186, upload-time = "2026-03-13T14:27:39.804Z" },
+    { url = "https://files.pythonhosted.org/packages/31/8e/b921ebb249ef0a36ee9ae3574412dc1b6b46e8b3b082fdce6cc8157424cb/claude_openai_proxy-0.1.3-py3-none-any.whl", hash = "sha256:89b0ea75cc848f3c914f1c28437268cc9355eca0ae40aa6278919d17fb82f6c1", size = 18971, upload-time = "2026-04-03T07:51:23.029Z" },
 ]
 
 [[package]]
@@ -598,7 +598,7 @@ wheels = [
 
 [[package]]
 name = "mtv-agent"
-version = "0.1.20"
+version = "0.1.21"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
