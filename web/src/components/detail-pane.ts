@@ -490,47 +490,31 @@ export class DetailPane extends LitElement {
     try {
       appState.updateCard(card.id, { loading: true });
 
-      if (card.type === "graph" && card.graphPresets) {
-        const { presets, start } = card.graphPresets;
-        const results = await Promise.all(
-          presets.map((name) =>
-            callTool("metrics_read", {
-              command: "preset",
-              flags: { name, start, output: "markdown" },
-            }),
-          ),
-        );
-        const combined = results.map((r) => r.result).join("\n\n");
-        appState.updateCard(card.id, {
-          content: combined,
-          loading: false,
-          timestamp: Date.now(),
-        });
-      } else {
-        const resp = await callTool(card.toolName, card.toolArgs ?? {});
-        await new Promise<void>((resolve) =>
-          setTimeout(() => {
-            if (card.type === "graph") {
-              appState.updateCard(card.id, {
-                content: resp.result,
-                loading: false,
-                timestamp: Date.now(),
-              });
-            } else {
-              const id = identify(card.toolName!, card.toolArgs ?? {});
-              const parsed = parseResult(id, resp.result);
-              const type = id.canPinGraph ? ("text" as CardDisplayType) : parsed.displayType;
-              appState.updateCard(card.id, {
-                content: parsed.content,
-                type,
-                loading: false,
-                timestamp: Date.now(),
-              });
-            }
-            resolve();
-          }, 0),
-        );
-      }
+      const resp = await callTool(card.toolName, card.toolArgs ?? {});
+      // Defer state update to a macrotask so the loading spinner renders first;
+      // await ensures the finally block waits for the update to complete.
+      await new Promise<void>((resolve) =>
+        setTimeout(() => {
+          if (card.type === "graph") {
+            appState.updateCard(card.id, {
+              content: resp.result,
+              loading: false,
+              timestamp: Date.now(),
+            });
+          } else {
+            const id = identify(card.toolName!, card.toolArgs ?? {});
+            const parsed = parseResult(id, resp.result);
+            const type = id.canPinGraph ? ("text" as CardDisplayType) : parsed.displayType;
+            appState.updateCard(card.id, {
+              content: parsed.content,
+              type,
+              loading: false,
+              timestamp: Date.now(),
+            });
+          }
+          resolve();
+        }, 0),
+      );
     } catch (err) {
       appState.updateCard(card.id, {
         content: `**Error re-running tool:** ${(err as Error).message}`,
