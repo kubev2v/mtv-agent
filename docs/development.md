@@ -82,6 +82,7 @@ to the API server on port 8000 automatically.
 | `make lint` | Lint Python code with ruff |
 | `make lint-web` | Lint web code with eslint + prettier |
 | `make package` | Build the pip-distributable wheel (includes web UI) |
+| `make publish` | Build the wheel and upload to PyPI |
 | `make clean` | Remove build artifacts |
 | `make clean-all` | Remove build artifacts, caches, and node_modules |
 | `make help` | Show all targets |
@@ -96,14 +97,18 @@ make lint-web   # eslint + prettier check
 make format-web # prettier auto-fix
 ```
 
-## Building the pip package
+## Building and publishing
 
 ```bash
-make package
+make package   # build the wheel (includes web UI)
+make publish   # build + upload to PyPI
 ```
 
-This runs `make web-build` first, copies `web/dist/` into `mtv_agent/web_dist/`,
-then runs `python -m build` to produce a distributable wheel in `dist/`.
+`make package` builds the web UI, copies `web/dist/` into `mtv_agent/web_dist/`,
+and runs `uv build` to produce a wheel in `dist/`. `make publish` chains
+`package` and `uv publish` so the web UI is always fresh.
+
+See [Publishing](publishing.md) for the full release checklist.
 
 ## Project structure
 
@@ -154,6 +159,7 @@ mtv-agent/
 │   ├── configuration.md     # config.json, mcp.json, env vars
 │   ├── api-reference.md     # HTTP API endpoints and SSE events
 │   ├── architecture.md      # Components, tool loop, data flow
+│   ├── publishing.md        # Building and releasing to PyPI
 │   └── development.md       # This file
 ├── Makefile                 # Dev and build targets
 └── pyproject.toml           # Package metadata and dependencies

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: run run-cop run-dev serve stop web-build web-dev format format-web lint lint-web package clean clean-all help
+.PHONY: run run-cop run-dev serve stop web-build web-dev format format-web lint lint-web package publish clean clean-all help
 
 ##@ Stack
 
@@ -61,6 +61,10 @@ package: web-build
 	cp -r web/dist mtv_agent/web_dist
 	rm -f mtv_agent/data/config.json.example mtv_agent/data/mcp.json.example
 	uv build
+
+## Build and publish to PyPI (always rebuilds the web UI)
+publish: package
+	uv publish
 
 ## Remove build artifacts
 clean:

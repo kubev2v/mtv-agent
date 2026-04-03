@@ -49,6 +49,7 @@ guides for the full walkthrough.
 **Developer Guide**
 
 - [Development](docs/development.md) -- contributor setup, dev workflows, and project structure
+- [Publishing](docs/publishing.md) -- building and releasing to PyPI
 - [Web UI](web/README.md) -- frontend architecture, components, and development
 
 See [docs/index.md](docs/index.md) for the full documentation index.
