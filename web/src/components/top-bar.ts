@@ -2,6 +2,7 @@ import { LitElement, html, css } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { appState } from "../state/app-state.js";
 import "./namespace-picker/namespace-picker.js";
+import "./quick-panels.js";
 
 @customElement("top-bar")
 export class TopBar extends LitElement {
@@ -128,6 +129,7 @@ export class TopBar extends LitElement {
 
       <div class="spacer"></div>
 
+      <quick-panels></quick-panels>
       <theme-picker></theme-picker>
     `;
   }
