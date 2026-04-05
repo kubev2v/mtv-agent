@@ -153,6 +153,18 @@ export class ChatComposer extends LitElement {
       font-feature-settings: "liga";
       -webkit-font-smoothing: antialiased;
     }
+
+    .composer.command-mode {
+      border-color: var(--accent-success);
+      box-shadow:
+        var(--shadow-md),
+        0 0 0 2px rgba(107, 159, 107, 0.2);
+    }
+
+    .composer.command-mode textarea {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+    }
   `;
 
   @property({ type: Boolean }) playbooksOpen = false;
@@ -230,6 +242,10 @@ export class ChatComposer extends LitElement {
     this.dispatchEvent(new CustomEvent("cancel-stream", { bubbles: true, composed: true }));
   }
 
+  private get isBangCommand(): boolean {
+    return this.text.trimStart().startsWith("!");
+  }
+
   private formatTokens(n: number): string {
     return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
   }
@@ -250,7 +266,7 @@ export class ChatComposer extends LitElement {
           `
         : ""}
 
-      <div class="composer">
+      <div class="composer ${this.isBangCommand ? "command-mode" : ""}">
         <button
           class="toggle-btn ${this.playbooksOpen ? "open" : ""}"
           @click=${this.togglePlaybooks}
@@ -261,7 +277,7 @@ export class ChatComposer extends LitElement {
         </button>
         <textarea
           rows="1"
-          placeholder="Send a message..."
+          placeholder="${this.isBangCommand ? "Shell command..." : "Send a message..."}"
           .value=${this.text}
           @input=${this.handleInput}
           @keydown=${this.handleKeyDown}

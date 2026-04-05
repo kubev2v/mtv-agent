@@ -22,6 +22,7 @@ from mtv_agent.lib.llm import LLMClient, discover_context_window, discover_model
 from mtv_agent.lib.mcp import MCPManager
 from mtv_agent.lib.text_utils import first_sentence
 from mtv_agent.lib.tools import ToolRegistry
+from mtv_agent.lib.tools import bash_tool
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 logger = logging.getLogger(__name__)
@@ -220,11 +221,32 @@ def _playbook_summaries() -> list[tuple[str, str]]:
     ]
 
 
+def _is_bang_command(message: str) -> str | None:
+    """If *message* starts with ``!`` return the shell command, else None."""
+    if message.startswith("!"):
+        cmd = message[1:].strip()
+        return cmd if cmd else None
+    return None
+
+
 @api.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, raw_request: Request) -> ChatResponse:
     """Non-streaming: returns the complete answer as JSON."""
     sid = request.session_id or uuid4().hex
     history = memory.load(sid)
+
+    # Bang-prefix shortcut: run bash directly, skip the LLM agent loop.
+    bang_cmd = _is_bang_command(request.message)
+    if bang_cmd is not None:
+        result = await bash_tool.run(bang_cmd, timeout=config.settings.bash_timeout)
+        answer = f"```\n{result}\n```"
+        turn_messages = [
+            {"role": "user", "content": request.message},
+            {"role": "assistant", "content": answer},
+        ]
+        memory.append(sid, turn_messages)
+        chat_store.save_chat(sid, memory.load(sid))
+        return ChatResponse(response=answer, session_id=sid)
 
     cancel = asyncio.Event()
     _cancel_events[sid] = cancel
@@ -274,6 +296,51 @@ async def chat_stream(
     """
     sid = request.session_id or uuid4().hex
     history = memory.load(sid)
+
+    # Bang-prefix shortcut: run bash directly, emit compatible SSE events.
+    bang_cmd = _is_bang_command(request.message)
+    if bang_cmd is not None:
+
+        async def _bang_generator():
+            yield {
+                "event": "session",
+                "data": json.dumps({"session_id": sid}),
+            }
+
+            args = {"command": bang_cmd}
+            yield {
+                "event": "tool_call",
+                "data": json.dumps(
+                    {"event": "tool_call", "name": "bash", "arguments": args}
+                ),
+            }
+
+            result = await bash_tool.run(bang_cmd, timeout=config.settings.bash_timeout)
+            yield {
+                "event": "tool_result",
+                "data": json.dumps(
+                    {"event": "tool_result", "name": "bash", "result": result}
+                ),
+            }
+
+            content = f"```\n{result}\n```"
+            turn_messages = [
+                {"role": "user", "content": request.message},
+                {"role": "assistant", "content": content},
+            ]
+            memory.append(sid, turn_messages)
+            chat_store.save_chat(sid, memory.load(sid))
+
+            yield {
+                "event": "content",
+                "data": json.dumps({"event": "content", "content": content}),
+            }
+            yield {
+                "event": "done",
+                "data": json.dumps({"event": "done", "content": content}),
+            }
+
+        return EventSourceResponse(_bang_generator())
 
     cancel = asyncio.Event()
     _cancel_events[sid] = cancel
