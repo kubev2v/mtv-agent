@@ -148,6 +148,22 @@ export class ChatMessageEl extends LitElement {
       white-space: nowrap;
       border: 0;
     }
+
+    .user .bubble.command {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      border-left: 3px solid var(--accent-success);
+    }
+
+    .command-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      color: var(--accent-success);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+      padding: 0 4px;
+    }
   `;
 
   @property({ type: Object }) msg!: ChatMsg;
@@ -187,11 +203,16 @@ export class ChatMessageEl extends LitElement {
   render() {
     const m = this.msg;
     const isUser = m.role === "user";
+    const isCommand = isUser && !!m.content?.startsWith("!");
     const isCancelled = m.role === "assistant" && m.cancelled === true;
 
     return html`
       <div class="message ${m.role}${isCancelled ? " cancelled" : ""}">
-        ${isUser ? nothing : html`<span class="role-label">Assistant</span>`}
+        ${isUser
+          ? isCommand
+            ? html`<span class="command-label">command</span>`
+            : nothing
+          : html`<span class="role-label">Assistant</span>`}
         ${m.thinking ? html`<thinking-indicator></thinking-indicator>` : nothing}
         ${m.toolCalls?.length
           ? html`
@@ -207,7 +228,11 @@ export class ChatMessageEl extends LitElement {
           ? isUser
             ? html`
                 <div class="bubble-wrapper">
-                  <div class="bubble ${!this.userExpanded ? "truncated" : ""}">
+                  <div
+                    class="bubble ${!this.userExpanded ? "truncated" : ""}${isCommand
+                      ? " command"
+                      : ""}"
+                  >
                     <markdown-renderer .content=${m.content}></markdown-renderer>
                   </div>
                   ${this.userOverflows
