@@ -10,7 +10,9 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
+import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -115,6 +117,37 @@ def _wait_for_port(
         time.sleep(interval)
     logger.warning("  %s did not become ready within %ds", label, timeout)
     return False
+
+
+def _client_host_for_listen(listen_host: str) -> str:
+    """Host for TCP probes and browser URLs when the server binds broadly."""
+    h = listen_host.strip().lower()
+    if h in ("0.0.0.0", "::", "[::]"):
+        return "127.0.0.1"
+    return listen_host
+
+
+def _browser_base_url(listen_host: str, port: int) -> str:
+    """HTTP URL for the web UI on the same machine as the agent process."""
+    ch = _client_host_for_listen(listen_host)
+    return f"http://{ch}:{port}/"
+
+
+def _schedule_open_browser(*, listen_host: str, port: int) -> None:
+    """After the API port accepts connections, open the web UI in a browser."""
+
+    def _run() -> None:
+        probe_host = _client_host_for_listen(listen_host)
+        if not _wait_for_port(probe_host, port, "API server", timeout=120):
+            return
+        url = _browser_base_url(listen_host, port)
+        try:
+            webbrowser.open(url)
+            logger.info("Opened browser: %s", url)
+        except Exception as exc:
+            logger.warning("Could not open browser (%s): %s", url, exc)
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
@@ -410,6 +443,7 @@ def start_all(
     kube_token: str | None = None,
     kubeconfig: str | None = None,
     kube_context: str | None = None,
+    open_browser: bool = False,
 ) -> None:
     """Start MCP containers, optionally COP, then the API server (blocking)."""
     api_url, token = resolve_kube_credentials(
@@ -457,7 +491,14 @@ def start_all(
         rt, mcp_raw=config.mcp_raw_config, skip_tls=skip_tls
     )
 
-    serve(host=host, port=port, no_web=no_web, kube_api_url=api_url, kube_token=token)
+    serve(
+        host=host,
+        port=port,
+        no_web=no_web,
+        kube_api_url=api_url,
+        kube_token=token,
+        open_browser=open_browser,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +517,7 @@ def serve(
     kube_token: str | None = None,
     kubeconfig: str | None = None,
     kube_context: str | None = None,
+    open_browser: bool = False,
 ) -> None:
     """Start just the FastAPI/Uvicorn server (blocking).
 
@@ -500,9 +542,18 @@ def serve(
         if api_url or token:
             set_kube_credentials(api_url, token)
 
+    bind_host = host or config.settings.server_host
+    bind_port = port or config.settings.server_port
+
+    if open_browser:
+        if no_web:
+            logger.info("Not opening browser (--no-web)")
+        else:
+            _schedule_open_browser(listen_host=bind_host, port=bind_port)
+
     uvicorn.run(
         "mtv_agent.main:app",
-        host=host or config.settings.server_host,
-        port=port or config.settings.server_port,
+        host=bind_host,
+        port=bind_port,
         timeout_graceful_shutdown=8,
     )

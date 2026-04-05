@@ -26,6 +26,7 @@ def _cmd_start(args: argparse.Namespace) -> None:
         kube_token=args.kube_token,
         kubeconfig=args.kubeconfig,
         kube_context=args.kube_context,
+        open_browser=args.open,
     )
 
 
@@ -43,6 +44,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
         kube_token=args.kube_token,
         kubeconfig=args.kubeconfig,
         kube_context=args.kube_context,
+        open_browser=args.open,
     )
 
 
@@ -140,6 +142,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Do not serve the static web UI (for frontend dev with Vite)",
     )
     p_start.add_argument(
+        "--open",
+        action="store_true",
+        help="Open the web UI in a browser when the server is ready",
+    )
+    p_start.add_argument(
         "--skip-tls",
         action="store_true",
         help="Skip TLS certificate verification when pulling container images",
@@ -160,6 +167,11 @@ def main(argv: list[str] | None = None) -> None:
         "--no-web",
         action="store_true",
         help="Do not serve the static web UI (for frontend dev with Vite)",
+    )
+    p_serve.add_argument(
+        "--open",
+        action="store_true",
+        help="Open the web UI in a browser when the server is ready",
     )
     _add_kube_flags(p_serve)
     p_serve.set_defaults(func=_cmd_serve)
