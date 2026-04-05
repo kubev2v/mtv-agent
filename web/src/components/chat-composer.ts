@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "lit";
 import { customElement, property, state, query } from "lit/decorators.js";
 import { appState } from "../state/app-state.js";
+import { InputHistory } from "../utils/input-history.js";
 
 @customElement("chat-composer")
 export class ChatComposer extends LitElement {
@@ -179,6 +180,7 @@ export class ChatComposer extends LitElement {
 
   @query("textarea") private textarea!: HTMLTextAreaElement;
 
+  private history = new InputHistory(this);
   private unsubscribe?: () => void;
 
   connectedCallback() {
@@ -208,10 +210,23 @@ export class ChatComposer extends LitElement {
 
   private handleInput(e: InputEvent) {
     this.text = (e.target as HTMLTextAreaElement).value;
+    this.history.reset();
     this.autoResize();
   }
 
   private handleKeyDown(e: KeyboardEvent) {
+    const result = this.history.handleKeyDown(e, this.textarea, this.text);
+    if (result.handled) {
+      e.preventDefault();
+      this.text = result.text;
+      this.updateComplete.then(() => {
+        this.autoResize();
+        if (this.textarea) {
+          this.textarea.selectionStart = this.textarea.selectionEnd = this.textarea.value.length;
+        }
+      });
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       this.send();
@@ -226,6 +241,7 @@ export class ChatComposer extends LitElement {
     const msg = this.text.trim();
     if (!msg || this.isStreaming) return;
     this.text = "";
+    this.history.reset();
     if (this.textarea) {
       this.textarea.style.height = "auto";
     }
