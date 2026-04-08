@@ -40,6 +40,7 @@ mtv-agent start
 mtv-agent start --with-cop
 mtv-agent start --runtime podman --port 9000
 mtv-agent start --open
+mtv-agent start --open-app
 ```
 
 | Flag | Description |
@@ -52,6 +53,7 @@ mtv-agent start --open
 | `--mcp-config PATH` | Path to `mcp.json` |
 | `--no-web` | Do not serve the web UI |
 | `--open` | Open the web UI in a browser when the server is ready (skipped with `--no-web`) |
+| `--open-app` | Open the web UI in app mode (chromeless window) when the server is ready (skipped with `--no-web`; requires a Chromium-based browser) |
 | `--skip-tls` | Skip TLS verification for Kubernetes API |
 | `--kube-api-url URL` | Kubernetes API URL (overrides kubeconfig) |
 | `--kube-token TOKEN` | Kubernetes bearer token (overrides kubeconfig) |
@@ -67,6 +69,7 @@ running externally.
 mtv-agent serve
 mtv-agent serve --host 127.0.0.1 --port 9000
 mtv-agent serve --open
+mtv-agent serve --open-app
 ```
 
 | Flag | Description |
@@ -77,6 +80,7 @@ mtv-agent serve --open
 | `--mcp-config PATH` | Path to `mcp.json` |
 | `--no-web` | Do not serve the web UI |
 | `--open` | Open the web UI in a browser when the server is ready (skipped with `--no-web`) |
+| `--open-app` | Open the web UI in app mode (chromeless window) when the server is ready (skipped with `--no-web`; requires a Chromium-based browser) |
 | `--skip-tls` | Skip TLS verification for Kubernetes API |
 | `--kube-api-url URL` | Kubernetes API URL (overrides kubeconfig) |
 | `--kube-token TOKEN` | Kubernetes bearer token (overrides kubeconfig) |
