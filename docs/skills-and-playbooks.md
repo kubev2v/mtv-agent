@@ -42,6 +42,8 @@ system prompt and decides which to activate based on the user's question.
 | `metrics-query-cookbook` | Preset queries, Ceph/network/pod/MTV metric tables |
 | `mtv-cli-docs` | Links to the kubectl-mtv HTML guide and MCP-to-CLI translation |
 | `mtv-docs` | Red Hat MTV 2.11 documentation deep links |
+| `kubevirt` | KubeVirt VM lifecycle: `kubectl virt` / `oc virt` commands for the user to run |
+| `govc` | VMware vSphere `govc` commands for inventory, VMs, snapshots, and datastores |
 
 ## How playbooks work
 

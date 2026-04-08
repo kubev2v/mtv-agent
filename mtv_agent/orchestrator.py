@@ -133,8 +133,43 @@ def _browser_base_url(listen_host: str, port: int) -> str:
     return f"http://{ch}:{port}/"
 
 
-def _schedule_open_browser(*, listen_host: str, port: int) -> None:
-    """After the API port accepts connections, open the web UI in a browser."""
+def _find_chrome_executable() -> str | None:
+    """Return the path to a Chromium-based browser, or *None*."""
+    candidates = [
+        "google-chrome",
+        "google-chrome-stable",
+        "chromium",
+        "chromium-browser",
+        "microsoft-edge",
+    ]
+    if sys.platform == "darwin":
+        candidates = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ] + candidates
+    for name in candidates:
+        path = shutil.which(name)
+        if path:
+            return path
+        # Only treat *name* as a filesystem path if it is absolute or has a
+        # directory component — avoids executing a same-named file in CWD when
+        # *name* is a bare executable name (e.g. "google-chrome").
+        if os.path.isabs(name) or os.path.dirname(name):
+            if os.path.isfile(name) and os.access(name, os.X_OK):
+                return name
+    return None
+
+
+def _schedule_open_browser(
+    *, listen_host: str, port: int, app_mode: bool = False
+) -> None:
+    """After the API port accepts connections, open the web UI in a browser.
+
+    When *app_mode* is ``True``, launch a Chromium-based browser with
+    ``--app=<url>`` for a chromeless window.  Falls back to the normal
+    ``webbrowser.open`` if no supported browser is found.
+    """
 
     def _run() -> None:
         probe_host = _client_host_for_listen(listen_host)
@@ -142,8 +177,25 @@ def _schedule_open_browser(*, listen_host: str, port: int) -> None:
             return
         url = _browser_base_url(listen_host, port)
         try:
-            webbrowser.open(url)
-            logger.info("Opened browser: %s", url)
+            if app_mode:
+                chrome = _find_chrome_executable()
+                if chrome:
+                    subprocess.Popen(
+                        [chrome, f"--app={url}"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    logger.info("Opened browser in app mode: %s", url)
+                else:
+                    logger.warning(
+                        "No Chromium-based browser found for app mode; "
+                        "falling back to default browser"
+                    )
+                    webbrowser.open(url)
+                    logger.info("Opened browser: %s", url)
+            else:
+                webbrowser.open(url)
+                logger.info("Opened browser: %s", url)
         except Exception as exc:
             logger.warning("Could not open browser (%s): %s", url, exc)
 
@@ -444,6 +496,7 @@ def start_all(
     kubeconfig: str | None = None,
     kube_context: str | None = None,
     open_browser: bool = False,
+    open_app: bool = False,
 ) -> None:
     """Start MCP containers, optionally COP, then the API server (blocking)."""
     api_url, token = resolve_kube_credentials(
@@ -498,6 +551,7 @@ def start_all(
         kube_api_url=api_url,
         kube_token=token,
         open_browser=open_browser,
+        open_app=open_app,
     )
 
 
@@ -518,6 +572,7 @@ def serve(
     kubeconfig: str | None = None,
     kube_context: str | None = None,
     open_browser: bool = False,
+    open_app: bool = False,
 ) -> None:
     """Start just the FastAPI/Uvicorn server (blocking).
 
@@ -545,11 +600,13 @@ def serve(
     bind_host = host or config.settings.server_host
     bind_port = port or config.settings.server_port
 
-    if open_browser:
+    if open_browser or open_app:
         if no_web:
             logger.info("Not opening browser (--no-web)")
         else:
-            _schedule_open_browser(listen_host=bind_host, port=bind_port)
+            _schedule_open_browser(
+                listen_host=bind_host, port=bind_port, app_mode=open_app
+            )
 
     uvicorn.run(
         "mtv_agent.main:app",

@@ -16,6 +16,7 @@ mtv-agent init
 mtv-agent start             # with LM Studio (default)
 mtv-agent start --with-cop  # with Claude
 mtv-agent start --open      # open the web UI in your browser when ready
+mtv-agent start --open-app  # open in app mode (chromeless window)
 ```
 
 Or, using [uv](https://docs.astral.sh/uv/) (isolated install, no root needed):
@@ -24,7 +25,9 @@ Or, using [uv](https://docs.astral.sh/uv/) (isolated install, no root needed):
 uv tool install mtv-agent
 ```
 
-Open `http://localhost:8000` in your browser, or use `mtv-agent start --open`. With `--no-web`, `--open` is ignored.
+Open `http://localhost:8000` in your browser, or use `mtv-agent start --open`.
+Use `--open-app` for a chromeless app-mode window (requires Chrome/Chromium/Edge).
+With `--no-web`, both `--open` and `--open-app` are ignored.
 
 You need an OpenAI-compatible LLM backend, access to an OpenShift cluster with
 MTV/Forklift, and Docker or Podman. See the
