@@ -230,8 +230,10 @@ def main(argv: list[str] | None = None) -> None:
     # -- dispatch ------------------------------------------------------------
     args = parser.parse_args(argv)
     if not hasattr(args, "func"):
-        parser.print_help()
-        sys.exit(1)
+        # Default to "start" when no subcommand is given.
+        args = parser.parse_args(
+            ["start"] + (argv if argv is not None else sys.argv[1:])
+        )
 
     if args.command in ("start", "serve"):
         logging.basicConfig(

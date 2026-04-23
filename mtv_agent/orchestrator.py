@@ -202,6 +202,25 @@ def _schedule_open_browser(
     threading.Thread(target=_run, daemon=True).start()
 
 
+def _schedule_ready_message(*, listen_host: str, port: int, url: str) -> None:
+    """Wait for the server to be ready, then print a user-friendly hint."""
+
+    def _run() -> None:
+        probe_host = _client_host_for_listen(listen_host)
+        if not _wait_for_port(probe_host, port, "API server", timeout=120):
+            return
+        print(
+            f"\n"
+            f"  ✔  mtv-agent is ready\n"
+            f"     {url}\n"
+            f"\n"
+            f"     Tip: use --open to launch the browser automatically\n",
+            flush=True,
+        )
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 # ---------------------------------------------------------------------------
 # Container lifecycle
 # ---------------------------------------------------------------------------
@@ -607,6 +626,9 @@ def serve(
             _schedule_open_browser(
                 listen_host=bind_host, port=bind_port, app_mode=open_app
             )
+    elif not no_web:
+        url = _browser_base_url(bind_host, bind_port)
+        _schedule_ready_message(listen_host=bind_host, port=bind_port, url=url)
 
     uvicorn.run(
         "mtv_agent.main:app",
