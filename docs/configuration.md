@@ -116,17 +116,17 @@ mtv-agent config
 {
   "mcpServers": {
     "kubectl-mtv": {
-      "url": "http://localhost:8080/sse",
+      "url": "http://localhost:8080/mcp",
       "image": "quay.io/yaacov/kubectl-mtv-mcp-server:latest",
       "kubeAuth": true
     },
     "kubectl-metrics": {
-      "url": "http://localhost:8081/sse",
+      "url": "http://localhost:8081/mcp",
       "image": "quay.io/yaacov/kubectl-metrics-mcp-server:latest",
       "kubeAuth": true
     },
     "kubectl-debug-queries": {
-      "url": "http://localhost:8082/sse",
+      "url": "http://localhost:8082/mcp",
       "image": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest",
       "kubeAuth": true
     }
@@ -138,9 +138,9 @@ mtv-agent config
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `url` | string | *(required)* | SSE endpoint URL for the MCP server |
+| `url` | string | *(required)* | Streamable HTTP endpoint URL for the MCP server |
 | `image` | string | | Container image used by `mtv-agent start` to run the server |
-| `headers` | object | `{}` | Custom HTTP headers sent with every SSE request |
+| `headers` | object | `{}` | Custom HTTP headers sent with every MCP request |
 | `kubeAuth` | boolean | `false` | Inject auto-resolved Kubernetes credentials (`Authorization` and `X-Kubernetes-Server` headers) |
 
 ## Environment variable overrides

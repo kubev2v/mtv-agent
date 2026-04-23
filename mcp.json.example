@@ -1,17 +1,17 @@
 {
   "mcpServers": {
     "kubectl-mtv": {
-      "url": "http://localhost:8080/sse",
+      "url": "http://localhost:8080/mcp",
       "image": "quay.io/yaacov/kubectl-mtv-mcp-server:latest",
       "kubeAuth": true
     },
     "kubectl-metrics": {
-      "url": "http://localhost:8081/sse",
+      "url": "http://localhost:8081/mcp",
       "image": "quay.io/yaacov/kubectl-metrics-mcp-server:latest",
       "kubeAuth": true
     },
     "kubectl-debug-queries": {
-      "url": "http://localhost:8082/sse",
+      "url": "http://localhost:8082/mcp",
       "image": "quay.io/yaacov/kubectl-debug-queries-mcp-server:latest",
       "kubeAuth": true
     }

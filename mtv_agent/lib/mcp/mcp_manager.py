@@ -1,4 +1,4 @@
-"""Manages multiple named MCP SSE connections with tool-name routing."""
+"""Manages multiple named MCP connections with tool-name routing."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class MCPManager:
-    """Manages multiple named MCP SSE connections with tool-name routing.
+    """Manages multiple named MCP connections with tool-name routing.
 
     Keeps a registry of all *configured* servers (from the config file) so
     that clients can list available servers and connect/disconnect by name
@@ -34,7 +34,7 @@ class MCPManager:
         self._configs.update(servers)
 
     async def connect_all(self, servers: dict[str, MCPServerConfig]) -> None:
-        """Store configs and open SSE connections to every server.
+        """Store configs and open connections to every server.
 
         Servers that are unreachable are logged and skipped so the
         application can still start.  They remain in ``_configs`` and
@@ -128,7 +128,7 @@ class MCPManager:
         ]
 
     async def disconnect_all(self) -> None:
-        """Tear down every SSE connection (in parallel)."""
+        """Tear down every MCP connection (in parallel)."""
         if self._clients:
             results = await asyncio.gather(
                 *(c.disconnect() for c in self._clients.values()),
