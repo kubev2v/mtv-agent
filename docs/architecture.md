@@ -27,7 +27,7 @@ and `stop` commands. If you run MCP servers yourself, configure their URLs in
 │ (browser)│                │  (FastAPI)   │                │(LM Studio / │
 └──────────┘                └──────┬───────┘                │   Claude)   │
                                    │                        └─────────────┘
-                          MCP SSE  │
+                          MCP HTTP │
                     ┌──────────────┼──────────────┐
                     │              │              │
                ┌────▼────┐  ┌─────▼─────┐  ┌────▼────────┐
@@ -87,13 +87,13 @@ virtual tools that do not call external services:
 
 ## MCP integration
 
-MCP servers expose tools over SSE (Server-Sent Events). The `MCPManager`
-connects to each server defined in `mcp.json`, discovers available tools, and
-registers them in the `ToolRegistry`.
+MCP servers expose tools over Streamable HTTP. The `MCPManager` connects to
+each server defined in `mcp.json`, discovers available tools, and registers
+them in the `ToolRegistry`.
 
 When `kubeAuth` is `true` for a server entry, the agent automatically injects
 `Authorization` (bearer token) and `X-Kubernetes-Server` (API URL) headers
-into every SSE request. This is how the MCP containers access the OpenShift
+into every MCP request. This is how the MCP containers access the OpenShift
 cluster without needing their own kubeconfig.
 
 ## Skills and playbooks

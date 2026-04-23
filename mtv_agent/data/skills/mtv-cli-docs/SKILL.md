@@ -162,7 +162,7 @@ kubectl mtv delete plan --name my-mig --clean-all -n <ns>
 | 19. Plan Lifecycle | [19-lifecycle](https://yaacov.github.io/kubectl-mtv/guide/19-plan-lifecycle-execution) | Start, cutover, cancel, archive, unarchive plans |
 | 20. Troubleshooting | [20-debugging](https://yaacov.github.io/kubectl-mtv/guide/20-debugging-and-troubleshooting) | Debug output, common issues, convertor pods stuck, mapping errors |
 | 21. Best Practices | [21-best-practices](https://yaacov.github.io/kubectl-mtv/guide/21-best-practices-and-security) | Plan strategies, provider security, query optimization, RBAC |
-| 22. MCP Server | [22-mcp](https://yaacov.github.io/kubectl-mtv/guide/22-model-context-protocol-mcp-server-integration) | AI assistant integration, stdio/SSE modes, Claude/Cursor setup |
+| 22. MCP Server | [22-mcp](https://yaacov.github.io/kubectl-mtv/guide/22-model-context-protocol-mcp-server-integration) | AI assistant integration, stdio/HTTP modes, Claude/Cursor setup |
 | 23. KubeVirt Tools | [23-kubevirt](https://yaacov.github.io/kubectl-mtv/guide/23-integration-with-kubevirt-tools) | virtctl integration for post-migration VM lifecycle |
 | 24. Health Checks | [24-health](https://yaacov.github.io/kubectl-mtv/guide/24-system-health-checks) | `kubectl mtv health`, operator/controller/pod/provider/plan checks |
 | 25. Settings | [25-settings](https://yaacov.github.io/kubectl-mtv/guide/25-settings-management) | `settings get/set/unset`, feature flags, performance tuning, VDDK image |

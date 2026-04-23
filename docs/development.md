@@ -128,7 +128,7 @@ mtv-agent/
 │   │   ├── html_to_md.py    # HTML-to-markdown conversion
 │   │   ├── kubeconfig.py    # Kubeconfig credential extraction (via k8s client)
 │   │   ├── llm.py           # OpenAI-compatible LLM client
-│   │   ├── mcp_client.py    # MCP SSE client
+│   │   ├── mcp_client.py    # MCP Streamable HTTP client
 │   │   ├── mcp_manager.py   # Multi-MCP server manager
 │   │   ├── md_sections.py   # Markdown section utilities
 │   │   ├── memory.py        # In-memory conversation history

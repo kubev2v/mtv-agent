@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
         api_url, token = resolve_kube_credentials()
         if api_url and token:
             inject_kube_headers(mcp_servers, api_url, token)
-            logger.info("Injected kube auth headers for MCP SSE connections")
+            logger.info("Injected kube auth headers for MCP connections")
         elif api_url or token:
             inject_kube_headers(mcp_servers, api_url, token)
             logger.warning(

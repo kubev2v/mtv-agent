@@ -218,7 +218,7 @@ def _run_container(
     """Start a single MCP container in detached mode.
 
     Credentials are **not** baked into the container; the API server
-    sends them as HTTP headers on each SSE connection instead.
+    sends them as HTTP headers on each MCP connection instead.
     """
     if skip_tls and runtime != "podman":
         raise RuntimeError(
@@ -244,7 +244,7 @@ def _run_container(
         image,
     ]
     subprocess.run(cmd, capture_output=True, check=True)
-    logger.info("  %s -> http://localhost:%d/sse", name, host_port)
+    logger.info("  %s -> http://localhost:%d/mcp", name, host_port)
 
 
 def start_mcp_containers(
@@ -577,7 +577,7 @@ def serve(
     """Start just the FastAPI/Uvicorn server (blocking).
 
     When kube credentials are supplied they are stored in module-level
-    state so the API server lifespan can inject them as MCP SSE auth
+    state so the API server lifespan can inject them as MCP auth
     headers.
     """
     if config_path or mcp_config_path:

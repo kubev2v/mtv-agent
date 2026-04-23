@@ -1,4 +1,4 @@
-"""MCP SSE client -- connect, discover tools, and call them."""
+"""MCP Streamable HTTP client -- connect, discover tools, and call them."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from contextlib import AsyncExitStack
 import anyio
 import httpx
 from mcp import ClientSession
-from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.types import TextContent
 
 logger = logging.getLogger(__name__)
@@ -31,13 +31,13 @@ DEFAULT_TOOL_CALL_TIMEOUT = 360  # seconds
 
 
 class MCPClient:
-    """Manages a persistent SSE connection to an MCP server.
+    """Manages a persistent Streamable HTTP connection to an MCP server.
 
     Each connection runs in a dedicated background task so the anyio
-    cancel-scope created by ``sse_client`` is tied to that task, not to
-    the caller (e.g. the FastAPI lifespan handler).  This prevents
-    ``CancelledError`` from leaking into the lifespan when a connection
-    is torn down from a request handler.
+    cancel-scope created by ``streamable_http_client`` is tied to that
+    task, not to the caller (e.g. the FastAPI lifespan handler).  This
+    prevents ``CancelledError`` from leaking into the lifespan when a
+    connection is torn down from a request handler.
     """
 
     def __init__(self, tool_timeout: int = DEFAULT_TOOL_CALL_TIMEOUT) -> None:
@@ -51,7 +51,7 @@ class MCPClient:
         self._connect_error: BaseException | None = None
 
     async def connect(self, url: str, headers: dict[str, str] | None = None) -> None:
-        """Establish an SSE session and initialize the MCP handshake."""
+        """Establish a Streamable HTTP session and initialize the MCP handshake."""
         await self.disconnect()
         self._url = url
         self._headers = headers
@@ -64,15 +64,19 @@ class MCPClient:
             raise self._connect_error
 
     async def _run(self) -> None:
-        """Background task owning the SSE transport lifetime."""
+        """Background task owning the Streamable HTTP transport lifetime."""
         assert self._ready is not None and self._stop is not None
         try:
             async with AsyncExitStack() as stack:
-                read_stream, write_stream = await stack.enter_async_context(
-                    sse_client(
+                http_client = httpx.AsyncClient(
+                    headers=self._headers or {},
+                    timeout=httpx.Timeout(30, read=60 * 60 * 24),
+                )
+                await stack.enter_async_context(http_client)
+                read_stream, write_stream, _ = await stack.enter_async_context(
+                    streamable_http_client(
                         self._url,
-                        headers=self._headers,
-                        sse_read_timeout=60 * 60 * 24,
+                        http_client=http_client,
                     )
                 )
                 session = await stack.enter_async_context(
@@ -90,7 +94,7 @@ class MCPClient:
             self._ready.set()
 
     async def _reconnect(self) -> None:
-        """Attempt to re-establish the SSE connection."""
+        """Attempt to re-establish the Streamable HTTP connection."""
         logger.info("Reconnecting MCP client to %s …", self._url)
         url, headers = self._url, self._headers
         await self.disconnect()
@@ -192,7 +196,7 @@ class MCPClient:
         return self._url
 
     async def disconnect(self) -> None:
-        """Tear down the SSE connection (preserves url/headers for reconnect)."""
+        """Tear down the connection (preserves url/headers for reconnect)."""
         if self._task is not None and not self._task.done():
             if self._stop is not None:
                 self._stop.set()

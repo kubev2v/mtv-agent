@@ -190,7 +190,7 @@ def _flatten_config(data: dict[str, Any]) -> dict[str, Any]:
 
 @dataclass
 class MCPServerConfig:
-    """Connection details for a single MCP SSE server."""
+    """Connection details for a single MCP Streamable HTTP server."""
 
     url: str
     headers: dict[str, str] = field(default_factory=dict)
@@ -198,7 +198,7 @@ class MCPServerConfig:
 
 
 def build_kube_auth_headers(api_url: str, token: str) -> dict[str, str]:
-    """Build HTTP headers for MCP SSE auth from Kubernetes credentials.
+    """Build HTTP headers for MCP auth from Kubernetes credentials.
 
     Returns an empty dict when both values are blank.
     """
@@ -235,7 +235,7 @@ def inject_kube_headers(
 
 
 def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
-    """Extract MCP SSE server entries from a parsed MCP config dict.
+    """Extract MCP server entries from a parsed MCP config dict.
 
     Reads the top-level ``mcpServers`` key.  Entries that use ``command``
     (stdio transport) are skipped with a warning.

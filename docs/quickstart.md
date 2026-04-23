@@ -117,9 +117,9 @@ You should see output like:
 
 ```
 INFO  Starting MCP servers (docker)...
-INFO    mtv-agent-mcp-mtv -> http://localhost:8080/sse
-INFO    mtv-agent-mcp-metrics -> http://localhost:8081/sse
-INFO    mtv-agent-mcp-debug-queries -> http://localhost:8082/sse
+INFO    mtv-agent-mcp-mtv -> http://localhost:8080/mcp
+INFO    mtv-agent-mcp-metrics -> http://localhost:8081/mcp
+INFO    mtv-agent-mcp-debug-queries -> http://localhost:8082/mcp
 INFO  Starting API server...
 INFO  Uvicorn running on http://0.0.0.0:8000
 ```
