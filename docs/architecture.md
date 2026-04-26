@@ -13,7 +13,7 @@ or more MCP (Model Context Protocol) servers that provide cluster access tools.
 | kubectl-mtv MCP | 8080 | MTV/Forklift resource queries and mutations |
 | kubectl-metrics MCP | 8081 | Prometheus/Thanos metric queries |
 | kubectl-debug-queries MCP | 8082 | Kubernetes resources, logs, and events |
-| claude-openai-proxy | 1234 | Claude-to-OpenAI adapter (only with `--with-cop`) |
+| claude-openai-proxy | 1234 | Claude-to-OpenAI adapter (auto-started when `llm.type` is `claude-vertex`) |
 
 The three MCP containers are started and stopped automatically by the `start`
 and `stop` commands. If you run MCP servers yourself, configure their URLs in

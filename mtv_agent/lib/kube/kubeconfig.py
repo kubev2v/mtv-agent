@@ -9,8 +9,10 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import socket
 import subprocess
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +21,34 @@ _SA_TOKEN_NAME = "default"
 _SA_TOKEN_DURATION = "168h"
 
 
+class KubeApiUnreachableError(Exception):
+    """Raised when the Kubernetes API server is found but not reachable."""
+
+    def __init__(self, api_url: str) -> None:
+        self.api_url = api_url
+        super().__init__(f"Cannot reach Kubernetes API server at {api_url}")
+
+
 @dataclass
 class KubeCredentials:
     """Kubernetes API server URL and bearer token."""
 
     api_url: str
     token: str
+
+
+def _check_api_reachable(api_url: str, timeout: float = 5.0) -> bool:
+    """Quick TCP probe to verify the API server is accepting connections."""
+    parsed = urlparse(api_url)
+    host = parsed.hostname
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    if not host:
+        return False
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (ConnectionRefusedError, TimeoutError, OSError):
+        return False
 
 
 def _create_sa_token(kubeconfig: str | None = None) -> str | None:
@@ -126,6 +150,9 @@ def load_kubeconfig(
     if not api_url:
         logger.debug("Kubeconfig loaded but no API server URL found")
         return None
+
+    if not _check_api_reachable(api_url):
+        raise KubeApiUnreachableError(api_url)
 
     token = (cfg.api_key.get("authorization") or "").removeprefix("Bearer ")
 

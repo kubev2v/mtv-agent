@@ -5,7 +5,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 from pydantic_settings import BaseSettings
 
@@ -129,6 +129,8 @@ def _flatten_config(data: dict[str, Any]) -> dict[str, Any]:
     flat: dict[str, Any] = {}
 
     llm = data.get("llm", {})
+    if llm.get("type") is not None:
+        flat["llm_type"] = llm["type"]
     if llm.get("baseUrl") is not None:
         flat["llm_base_url"] = llm["baseUrl"]
     if llm.get("apiKey") is not None:
@@ -306,8 +308,9 @@ def _build_settings(json_values: dict[str, Any]) -> "Settings":
     """Create a Settings instance with the given JSON overrides."""
 
     class _S(BaseSettings):
+        llm_type: Literal["claude-vertex", "openai"] = "claude-vertex"
         llm_base_url: str = "http://localhost:1234/v1"
-        llm_api_key: str = "lm-studio"
+        llm_api_key: str = "not-needed"
         llm_model: str | None = None
 
         # Binds to all interfaces for containerized deployments.
@@ -341,17 +344,17 @@ def _build_settings(json_values: dict[str, Any]) -> "Settings":
 
         def model_post_init(self, __context: Any) -> None:
             """Apply JSON config values for fields not already set by env vars."""
-            try:
-                for key, value in self._json_values.items():
-                    env_name = key.upper()
-                    if env_name not in os.environ:
+            for key, value in self._json_values.items():
+                env_name = key.upper()
+                if env_name not in os.environ:
+                    try:
                         if key in ("skills_dir", "playbooks_dir", "cache_dir"):
                             value = Path(value).expanduser()
                         setattr(self, key, value)
-            except Exception as exc:
-                raise RuntimeError(
-                    "Failed initializing Settings from JSON overrides"
-                ) from exc
+                    except Exception as exc:
+                        raise RuntimeError(
+                            f"Failed setting config field {key!r} to {value!r}"
+                        ) from exc
 
     return _S()
 

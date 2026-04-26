@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
@@ -17,7 +18,7 @@ import mtv_agent.config as config
 from mtv_agent.config import inject_kube_headers, load_mcp_servers
 from mtv_agent.lib.chat import ChatMemory, ChatStore
 from mtv_agent.lib.content import PlaybooksManager, SkillsManager
-from mtv_agent.lib.kube import resolve_kube_credentials
+from mtv_agent.lib.kube import KubeApiUnreachableError, resolve_kube_credentials
 from mtv_agent.lib.llm import LLMClient, discover_context_window, discover_model
 from mtv_agent.lib.mcp import MCPManager
 from mtv_agent.lib.text_utils import first_sentence
@@ -59,14 +60,45 @@ async def lifespan(app: FastAPI):
             model = await discover_model(
                 config.settings.llm_base_url, config.settings.llm_api_key
             )
-        except Exception as exc:
-            logger.warning(
-                "Could not reach LLM server at %s: %s. "
-                "Start the server and select a model via the UI or set LLM_MODEL.",
-                config.settings.llm_base_url,
-                exc,
-            )
-            model = "unavailable"
+        except Exception:
+            cfg_file = config.config_path or "~/.mtv-agent/config.json"
+            if config.settings.llm_type == "claude-vertex":
+                print(
+                    f"\n"
+                    f"  ✘  Cannot reach the Claude proxy\n"
+                    f"     {config.settings.llm_base_url}\n"
+                    f"\n"
+                    f"     The agent is configured to use Claude on Google Cloud\n"
+                    f'     (llm.type = "claude-vertex" in {cfg_file}).\n'
+                    f"\n"
+                    f"     To fix this:\n"
+                    f"     1. Run: gcloud auth application-default login\n"
+                    f"     2. Export CLOUD_ML_REGION and ANTHROPIC_VERTEX_PROJECT_ID\n"
+                    f"     3. Restart the agent\n"
+                    f"\n"
+                    f'     To use a local model instead, set llm.type to "openai"\n'
+                    f"     in {cfg_file}.\n",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"\n"
+                    f"  ✘  Cannot reach LLM server\n"
+                    f"     {config.settings.llm_base_url}\n"
+                    f"\n"
+                    f"     The agent is configured to connect to an external LLM\n"
+                    f'     server (llm.type = "openai" in {cfg_file}).\n'
+                    f"\n"
+                    f"     To fix this:\n"
+                    f"     1. Start your LLM server (e.g. LM Studio, Ollama)\n"
+                    f"     2. Make sure llm.baseUrl in {cfg_file}\n"
+                    f"        matches the server address\n"
+                    f"\n"
+                    f"     To use Claude on Google Cloud instead, set llm.type\n"
+                    f'     to "claude-vertex" in {cfg_file}.\n',
+                    flush=True,
+                )
+            sys.exit(1)
     logger.info("Using model: %s", model)
 
     llm = LLMClient(
@@ -92,7 +124,15 @@ async def lifespan(app: FastAPI):
     mcp_servers = load_mcp_servers(config.mcp_raw_config)
     mcp_manager = MCPManager(tool_timeout=config.settings.mcp_tool_timeout)
     if mcp_servers:
-        api_url, token = resolve_kube_credentials()
+        try:
+            api_url, token = resolve_kube_credentials()
+        except KubeApiUnreachableError as exc:
+            logger.warning(
+                "Kubernetes API unreachable (%s) -- "
+                "MCP servers will use their own credential fallback.",
+                exc.api_url,
+            )
+            api_url, token = "", ""
         if api_url and token:
             inject_kube_headers(mcp_servers, api_url, token)
             logger.info("Injected kube auth headers for MCP connections")

@@ -33,11 +33,11 @@ mtv-agent init --force      # overwrite existing files
 
 ### `mtv-agent start`
 
-Start the MCP server containers, optional LLM proxy, and the API server.
+Start the MCP server containers, the LLM proxy (when `llm.type` is
+`claude-vertex`), and the API server.
 
 ```bash
 mtv-agent start
-mtv-agent start --with-cop
 mtv-agent start --runtime podman --port 9000
 mtv-agent start --open
 mtv-agent start --open-app
@@ -45,7 +45,7 @@ mtv-agent start --open-app
 
 | Flag | Description |
 |---|---|
-| `--with-cop` | Start `claude-openai-proxy` alongside the agent |
+| `--with-cop` | Force `claude-vertex` mode for this run (legacy; prefer setting `llm.type` in config.json) |
 | `--runtime docker\|podman` | Container runtime (auto-detected if omitted) |
 | `--host HOST` | API server bind address (default: `0.0.0.0`) |
 | `--port PORT` | API server port (default: `8000`) |

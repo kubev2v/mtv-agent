@@ -13,8 +13,7 @@ with a tool loop, MCP tool integration, and markdown-based skills and playbooks.
 ```bash
 pip install mtv-agent
 mtv-agent init
-mtv-agent start             # with LM Studio (default)
-mtv-agent start --with-cop  # with Claude
+mtv-agent start             # with Claude on Vertex AI (default)
 mtv-agent start --open      # open the web UI in your browser when ready
 mtv-agent start --open-app  # open in app mode (chromeless window)
 ```
