@@ -25,7 +25,11 @@ from mtv_agent.config import (
     bundled_config_example,
     bundled_mcp_example,
 )
-from mtv_agent.lib.kube import resolve_kube_credentials, set_kube_credentials
+from mtv_agent.lib.kube import (
+    KubeApiUnreachableError,
+    resolve_kube_credentials,
+    set_kube_credentials,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -500,6 +504,54 @@ def _signal_handler(signum: int, frame) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _ensure_cleanup_registered() -> None:
+    """Register process cleanup handlers (idempotent)."""
+    if getattr(_ensure_cleanup_registered, "_done", False):
+        return
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+    atexit.register(_cleanup)
+    _ensure_cleanup_registered._done = True  # type: ignore[attr-defined]
+
+
+def _maybe_start_cop() -> None:
+    """Start the COP proxy if llm.type is ``claude-vertex``.
+
+    Overrides ``llm_base_url`` and ``llm_api_key`` so the rest of the
+    stack talks to the proxy instead of the values in the config file.
+    """
+    if config.settings.llm_type != "claude-vertex":
+        return
+
+    _ensure_cleanup_registered()
+    _state.cop_proc = start_cop()
+    if not _wait_for_port("localhost", _COP_PORT, "claude-openai-proxy"):
+        stop_cop(_state.cop_proc)
+        _state.cop_proc = None
+        print(
+            f"\n"
+            f"  ✘  Cannot start claude-openai-proxy\n"
+            f"     http://localhost:{_COP_PORT}\n"
+            f"\n"
+            f"     The proxy translates OpenAI-compatible requests to\n"
+            f"     Claude on Google Cloud (Vertex AI).\n"
+            f"\n"
+            f"     To fix this:\n"
+            f"     • Run: gcloud auth application-default login\n"
+            f"     • Export CLOUD_ML_REGION and ANTHROPIC_VERTEX_PROJECT_ID\n"
+            f"     • Restart the agent\n",
+            flush=True,
+        )
+        sys.exit(1)
+
+    config.settings.llm_base_url = f"http://localhost:{_COP_PORT}/v1"
+    config.settings.llm_api_key = "not-needed"
+    logger.info(
+        "claude-vertex mode: overriding LLM URL to %s",
+        config.settings.llm_base_url,
+    )
+
+
 def start_all(
     *,
     with_cop: bool = False,
@@ -518,46 +570,73 @@ def start_all(
     open_app: bool = False,
 ) -> None:
     """Start MCP containers, optionally COP, then the API server (blocking)."""
-    api_url, token = resolve_kube_credentials(
-        kube_api_url, kube_token, kubeconfig, kube_context
-    )
+    try:
+        api_url, token = resolve_kube_credentials(
+            kube_api_url, kube_token, kubeconfig, kube_context
+        )
+    except KubeApiUnreachableError as exc:
+        print(
+            f"\n"
+            f"  ✘  Cannot reach Kubernetes API server\n"
+            f"     {exc.api_url}\n"
+            f"\n"
+            f"     The cluster may be down or your network/VPN may be\n"
+            f"     disconnected.\n"
+            f"\n"
+            f"     To fix this:\n"
+            f"     • Check that the cluster is running\n"
+            f"     • Verify your VPN or network connection\n"
+            f"     • Confirm the correct kubeconfig context is selected\n"
+            f"       (kubectl config current-context)\n",
+            flush=True,
+        )
+        sys.exit(1)
     if not api_url:
         print(
-            "Error: Kubernetes API URL not found.\n"
-            "  Pass --kube-api-url, set KUBE_API_URL, or configure a kubeconfig.",
-            file=sys.stderr,
+            "\n"
+            "  ✘  Kubernetes API URL not found\n"
+            "\n"
+            "     The agent needs a Kubernetes cluster to connect to,\n"
+            "     but no API URL was provided or discovered.\n"
+            "\n"
+            "     To fix this:\n"
+            "     • Pass --kube-api-url on the command line\n"
+            "     • Set the KUBE_API_URL environment variable\n"
+            "     • Configure a kubeconfig (e.g. ~/.kube/config)\n",
+            flush=True,
         )
         sys.exit(1)
     if not token:
         print(
-            "Error: Kubernetes token not found.\n"
-            "  Pass --kube-token, set KUBE_TOKEN, or configure a kubeconfig.",
-            file=sys.stderr,
+            "\n"
+            "  ✘  Kubernetes token not found\n"
+            "\n"
+            f"     An API URL was found ({api_url}) but no bearer\n"
+            "     token is available for authentication.\n"
+            "\n"
+            "     To fix this:\n"
+            "     • Pass --kube-token on the command line\n"
+            "     • Set the KUBE_TOKEN environment variable\n"
+            "     • Use a kubeconfig with a valid token or exec plugin\n",
+            flush=True,
         )
         sys.exit(1)
 
     rt = detect_runtime(runtime)
     _state.runtime = rt
 
-    signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGTERM, _signal_handler)
-    atexit.register(_cleanup)
+    _ensure_cleanup_registered()
 
     _safe_reload_config(
         config_path_arg=config_path, mcp_config_path_arg=mcp_config_path
     )
     _require_config_files()
 
+    # Legacy --with-cop flag: force claude-vertex mode for this run.
     if with_cop:
-        _state.cop_proc = start_cop()
-        if not _wait_for_port("localhost", _COP_PORT, "claude-openai-proxy"):
-            stop_cop(_state.cop_proc)
-            _state.cop_proc = None
-            print(
-                "Error: claude-openai-proxy did not become ready.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        config.settings.llm_type = "claude-vertex"
+
+    _maybe_start_cop()
 
     _state.container_names = start_mcp_containers(
         rt, mcp_raw=config.mcp_raw_config, skip_tls=skip_tls
@@ -606,13 +685,24 @@ def serve(
         )
     _require_config_files()
 
+    if _state.cop_proc is None or _state.cop_proc.poll() is not None:
+        _state.cop_proc = None
+        _maybe_start_cop()
+
     if no_web:
         config.no_web = True
 
     if kube_api_url or kube_token or kubeconfig or kube_context:
-        api_url, token = resolve_kube_credentials(
-            kube_api_url, kube_token, kubeconfig, kube_context
-        )
+        try:
+            api_url, token = resolve_kube_credentials(
+                kube_api_url, kube_token, kubeconfig, kube_context
+            )
+        except KubeApiUnreachableError as exc:
+            logger.warning(
+                "Kubernetes API unreachable (%s) -- continuing without kube credentials",
+                exc.api_url,
+            )
+            api_url, token = "", ""
         if api_url or token:
             set_kube_credentials(api_url, token)
 

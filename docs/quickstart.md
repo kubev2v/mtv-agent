@@ -26,9 +26,31 @@ You should also have:
 
 ## Step 1: Choose an LLM backend
 
-mtv-agent needs an OpenAI-compatible LLM to power the conversation. Pick one:
+mtv-agent needs an OpenAI-compatible LLM to power the conversation. The
+backend is selected by the `llm.type` field in `~/.mtv-agent/config.json`.
 
-### Option A: LM Studio (local, free)
+### Option A: Claude on Vertex AI (default)
+
+The default configuration uses Claude via the bundled proxy. You just need
+Google Cloud credentials:
+
+1. Authenticate with Google Cloud:
+
+   ```bash
+   gcloud auth application-default login
+   ```
+
+2. Set the required environment variables:
+
+   ```bash
+   export CLOUD_ML_REGION=us-east5              # or your preferred region
+   export ANTHROPIC_VERTEX_PROJECT_ID=my-project # your GCP project ID
+   ```
+
+No config changes needed -- `mtv-agent init` already sets `llm.type` to
+`"claude-vertex"`.
+
+### Option B: LM Studio (local, free)
 
 1. Download and install [LM Studio](https://lmstudio.ai).
 2. Open it, go to the **Discover** tab, and download a model. Recommended:
@@ -37,27 +59,18 @@ mtv-agent needs an OpenAI-compatible LLM to power the conversation. Pick one:
    - `Llama-3.1-8B-Instruct` -- lightweight, good for testing
 3. Go to the **Developer** tab and click **Start Server**.
 
-The server runs on `http://localhost:1234` by default, which is exactly what
-mtv-agent expects. No config changes needed.
+4. Edit `~/.mtv-agent/config.json` and set the LLM type to `"openai"`:
 
-### Option B: Claude (cloud, requires Anthropic account)
-
-1. Install the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
-   and log in:
-
-   ```bash
-   claude
+   ```json
+   {
+     "llm": {
+       "type": "openai",
+       "baseUrl": "http://localhost:1234/v1",
+       "apiKey": "lm-studio",
+       "model": null
+     }
+   }
    ```
-
-2. Verify it works:
-
-   ```bash
-   claude -p "hello"
-   ```
-
-The `claude-openai-proxy` that bridges Claude to an OpenAI-compatible API is
-already installed as part of `mtv-agent`. You just need to pass `--with-cop`
-when starting (see below).
 
 For more details on either backend, see [LLM Backends](llm-backends.md).
 
@@ -101,21 +114,26 @@ credential resolution details.
 
 ## Step 3: Start the agent
 
+### With Claude on Vertex AI (default)
+
+```bash
+CLOUD_ML_REGION=us-east5 ANTHROPIC_VERTEX_PROJECT_ID=my-project \
+  mtv-agent start
+```
+
 ### With LM Studio
 
 ```bash
 mtv-agent start
 ```
 
-### With Claude
-
-```bash
-mtv-agent start --with-cop
-```
-
-You should see output like:
+You should see output similar to the following. The exact lines depend on
+your `llm.type` setting -- the `claude-openai-proxy` line only appears when
+`llm.type` is `"claude-vertex"` (the default); with `llm.type: "openai"`
+(e.g. LM Studio) that line is absent:
 
 ```
+INFO  Starting claude-openai-proxy on port 1234...   # claude-vertex only
 INFO  Starting MCP servers (docker)...
 INFO    mtv-agent-mcp-mtv -> http://localhost:8080/mcp
 INFO    mtv-agent-mcp-metrics -> http://localhost:8081/mcp
@@ -172,6 +190,11 @@ environment variables or CLI flags with an explicit token.
 **"Neither docker nor podman found in PATH"**
 Install Docker or Podman. On macOS: `brew install podman`. On Fedora/RHEL:
 `sudo dnf install podman`.
+
+**"claude-openai-proxy did not become ready"**
+Make sure `CLOUD_ML_REGION` and `ANTHROPIC_VERTEX_PROJECT_ID` are set and
+that you have run `gcloud auth application-default login`. Or switch to
+a local model by setting `llm.type` to `"openai"` in config.json.
 
 **"No models found at http://localhost:1234/v1"**
 LM Studio is not running or no model is loaded. Open LM Studio, load a model,

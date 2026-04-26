@@ -30,8 +30,9 @@ mtv-agent config
 ```json
 {
   "llm": {
+    "type": "claude-vertex",
     "baseUrl": "http://localhost:1234/v1",
-    "apiKey": "lm-studio",
+    "apiKey": "not-needed",
     "model": null
   },
   "server": {
@@ -60,8 +61,9 @@ mtv-agent config
 
 | Key | Default | Description |
 |---|---|---|
-| `baseUrl` | `http://localhost:1234/v1` | OpenAI-compatible chat completion endpoint |
-| `apiKey` | `lm-studio` | API key sent in the `Authorization` header |
+| `type` | `claude-vertex` | Backend type: `"claude-vertex"` (auto-starts proxy) or `"openai"` (uses baseUrl directly) |
+| `baseUrl` | `http://localhost:1234/v1` | OpenAI-compatible chat completion endpoint (ignored when type is `claude-vertex`) |
+| `apiKey` | `not-needed` | API key sent in the `Authorization` header (ignored when type is `claude-vertex`) |
 | `model` | `null` (auto-discovered) | Model name; when `null`, the agent queries `/v1/models` |
 
 ### Server settings (`server`)
@@ -150,8 +152,9 @@ prefix is needed.
 
 | Variable | Config key | Default | Description |
 |---|---|---|---|
-| `LLM_BASE_URL` | `llm.baseUrl` | `http://localhost:1234/v1` | OpenAI-compatible endpoint |
-| `LLM_API_KEY` | `llm.apiKey` | `lm-studio` | API key for the LLM server |
+| `LLM_TYPE` | `llm.type` | `claude-vertex` | Backend type: `claude-vertex` or `openai` |
+| `LLM_BASE_URL` | `llm.baseUrl` | `http://localhost:1234/v1` | OpenAI-compatible endpoint (ignored when type is `claude-vertex`) |
+| `LLM_API_KEY` | `llm.apiKey` | `not-needed` | API key for the LLM server (ignored when type is `claude-vertex`) |
 | `LLM_MODEL` | `llm.model` | auto-discovered | Model name (queries `/v1/models` if unset) |
 | `SERVER_HOST` | `server.host` | `0.0.0.0` | API server bind address |
 | `SERVER_PORT` | `server.port` | `8000` | API server port |

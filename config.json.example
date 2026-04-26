@@ -1,7 +1,8 @@
 {
   "llm": {
+    "type": "claude-vertex",
     "baseUrl": "http://localhost:1234/v1",
-    "apiKey": "lm-studio",
+    "apiKey": "not-needed",
     "model": null
   },
   "server": {

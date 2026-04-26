@@ -9,10 +9,12 @@
 - **An OpenShift cluster** with [MTV/Forklift](https://github.com/kubev2v/forklift)
   installed. You need a valid kubeconfig (via `oc login` or `kubectl`) or a
   bearer token for the cluster API.
-- **An OpenAI-compatible LLM server** -- either
-  [LM Studio](https://lmstudio.ai) (local) or
-  [Claude](https://docs.anthropic.com/en/docs/claude-code) via the bundled
-  proxy. See [LLM Backends](llm-backends.md) for details.
+- **An LLM backend** -- the default is Claude on
+  [Vertex AI](https://cloud.google.com/vertex-ai) via the bundled proxy
+  (requires a GCP project and `gcloud auth`). Alternatively, use
+  [LM Studio](https://lmstudio.ai) or any OpenAI-compatible server by
+  setting `llm.type` to `"openai"` in config.json.
+  See [LLM Backends](llm-backends.md) for details.
 
 ## Install with uv (recommended)
 
