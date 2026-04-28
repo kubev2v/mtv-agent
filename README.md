@@ -10,18 +10,20 @@ with a tool loop, MCP tool integration, and markdown-based skills and playbooks.
 
 ## Quick start
 
+Install [uv](https://docs.astral.sh/uv/) if you don't have it yet:
+
 ```bash
-pip install mtv-agent
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then install and run the agent:
+
+```bash
+uv tool install mtv-agent
 mtv-agent init
 mtv-agent start             # with Claude on Vertex AI (default)
 mtv-agent start --open      # open the web UI in your browser when ready
 mtv-agent start --open-app  # open in app mode (chromeless window)
-```
-
-Or, using [uv](https://docs.astral.sh/uv/) (isolated install, no root needed):
-
-```bash
-uv tool install mtv-agent
 ```
 
 Open `http://localhost:8000` in your browser, or use `mtv-agent start --open`.
