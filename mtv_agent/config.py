@@ -254,6 +254,9 @@ def load_mcp_servers(data: dict[str, Any]) -> dict[str, MCPServerConfig]:
     for name, entry in mcp_section.items():
         if not isinstance(entry, dict):
             continue
+        if not entry.get("enabled", True):
+            logger.info("MCP server %r is disabled -- skipping", name)
+            continue
         url = entry.get("url")
         if not url:
             if entry.get("command"):

@@ -80,7 +80,64 @@ For field references and ready-to-use queries, load the appropriate per-provider
 
 ## TSL Query Syntax
 
-Structure: `[SELECT fields] WHERE condition [ORDER BY field [ASC|DESC]] [LIMIT n]`
+Use the `query` flag to filter, sort, and project results. use pipe output to `jq`, `grep`, or other post-processing tools only in cases --query does not handle.
+The `query` flag handles filtering, field selection, sorting, and limiting natively.
+
+TSL (Tree Search Language) supports four optional clauses, in this order:
+
+```
+[select <field>, ...] [where <condition>] [order by <field> [asc|desc]] [limit N]
+```
+
+All clauses are optional and can be combined freely.
+
+### select -- choose which fields to return
+
+Use `select` to project only the fields you need (like SQL SELECT):
+
+```
+select name, cpuCount, memoryMB
+select name, powerState, len(disks) as diskCount
+select name, disks[*].capacity as diskSizes
+```
+
+### where -- filter rows
+
+```
+where name ~= 'prod-.*'
+where powerState = 'poweredOn' and memoryMB > 4096
+where cpuCount > 4 and len(disks) > 1
+where any(concerns[*].category = 'Critical')
+where name in ['vm1', 'vm2', 'vm3']
+where memoryMB between 2048 and 8192
+where not (powerState = 'poweredOff')
+where name is not null
+```
+
+### order by -- sort results
+
+```
+order by name asc
+order by memoryMB desc
+order by cpuCount desc
+```
+
+### limit -- cap the number of results
+
+```
+limit 10
+limit 5
+```
+
+### Combining clauses
+
+```
+select name, cpuCount, memoryMB where powerState = 'poweredOn' order by memoryMB desc limit 10
+where name like '%web%' order by memoryMB desc limit 10
+select name, powerState where cpuCount > 4 order by name asc
+where memoryMB > 4096 limit 5
+select name where any(concerns[*].category = 'Critical') order by name asc limit 20
+```
 
 ### Operators
 
