@@ -256,6 +256,7 @@ def _run_container(
         runtime,
         "run",
         *(["--tls-verify=false"] if skip_tls else []),
+        "--pull=always",
         "--rm",
         "-d",
         "--name",
@@ -295,6 +296,9 @@ def start_mcp_containers(
     try:
         for key, entry in mcp_section.items():
             if not isinstance(entry, dict):
+                continue
+            if not entry.get("enabled", True):
+                logger.info("  %s -- disabled, skipping", key)
                 continue
             image = entry.get("image")
             if not image:
