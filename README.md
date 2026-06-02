@@ -5,7 +5,7 @@ AI agent for **MTV / Forklift** virtual machine migrations with a FastAPI server
 ## Install
 
 ```bash
-uv tool install git+https://github.com/kubev2v/mtv-agent
+uv tool install mtv-agent
 ```
 
 Or for development:
