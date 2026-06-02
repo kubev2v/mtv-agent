@@ -16,6 +16,48 @@ cd mtv-agent
 uv sync
 ```
 
+## Prerequisites
+
+mtv-agent relies on three kubectl/oc plugins that provide MCP servers for cluster interaction. Install them before running the agent.
+
+### kubectl-mtv (`oc mtv`)
+
+Manages Forklift migrations — providers, plans, mappings, inventory, and health checks.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yaacov/kubectl-mtv/main/install.sh | bash
+```
+
+Or build from source — see [yaacov/kubectl-mtv](https://github.com/yaacov/kubectl-mtv).
+
+### kubectl-metrics (`oc metrics`)
+
+Queries Prometheus / Thanos metrics on OpenShift clusters.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yaacov/kubectl-metrics/main/install.sh | bash
+```
+
+Or build from source — see [yaacov/kubectl-metrics](https://github.com/yaacov/kubectl-metrics).
+
+### kubectl-debug-queries (`oc debug-queries`)
+
+Queries Kubernetes resources, logs, and events using an SQL-like language.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yaacov/kubectl-debug-queries/main/install.sh | bash
+```
+
+Or build from source — see [yaacov/kubectl-debug-queries](https://github.com/yaacov/kubectl-debug-queries).
+
+All three install to `~/.local/bin` by default. Verify with:
+
+```bash
+oc mtv --help
+oc metrics --help
+oc debug-queries --help
+```
+
 ## Quick Start
 
 ```bash
