@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "kubectl-mtv": {
+      "transport": "stdio",
+      "command": "oc",
+      "args": ["mtv", "mcp-server"]
+    },
+    "kubectl-metrics": {
+      "transport": "stdio",
+      "command": "oc",
+      "args": ["metrics", "mcp-server", "--insecure-skip-tls-verify"]
+    },
+    "kubectl-debug-queries": {
+      "transport": "stdio",
+      "command": "oc",
+      "args": ["debug-queries", "mcp-server"]
+    }
+  }
+}
