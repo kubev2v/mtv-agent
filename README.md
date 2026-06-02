@@ -1,64 +1,230 @@
 # mtv-agent
 
-AI agent for [MTV/Forklift](https://github.com/kubev2v/forklift) VM migrations,
-with a tool loop, MCP tool integration, and markdown-based skills and playbooks.
+AI agent for **MTV / Forklift** virtual machine migrations with a FastAPI server and a Textual TUI client.
 
-<div align="center">
-  <img src="docs/mtv-agent-v0.1.0.png" alt="mtv-agent web UI" width="800" />
-  <p><em>mtv-agent — chat interface with live migration metrics and plan status</em></p>
-</div>
-
-## Quick start
-
-Install [uv](https://docs.astral.sh/uv/) if you don't have it yet:
+## Install
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install git+https://github.com/kubev2v/mtv-agent
 ```
 
-Then install and run the agent:
+Or for development:
 
 ```bash
-uv tool install mtv-agent
+git clone https://github.com/kubev2v/mtv-agent.git
+cd mtv-agent
+uv sync
+```
+
+## Quick Start
+
+```bash
+# Bootstrap ~/.mtv-agent/ with config files
 mtv-agent init
-mtv-agent start             # with Claude on Vertex AI (default)
-mtv-agent start --open      # open the web UI in your browser when ready
-mtv-agent start --open-app  # open in app mode (chromeless window)
+
+# Edit config (LLM endpoint, MCP servers, etc.)
+vim ~/.mtv-agent/config.json
+vim ~/.mtv-agent/mcp.json
+
+# Run everything in one command (server + TUI)
+mtv-agent
 ```
 
-Open `http://localhost:8000` in your browser, or use `mtv-agent start --open`.
-Use `--open-app` for a chromeless app-mode window (requires Chrome/Chromium/Edge).
-With `--no-web`, both `--open` and `--open-app` are ignored.
+This starts the server in the background and launches the TUI. Server logs go to `~/.mtv-agent/server.log`. On exit the server shuts down automatically.
 
-You need an OpenAI-compatible LLM backend, access to an OpenShift cluster with
-MTV/Forklift, and Docker or Podman. See the
-[Installation](docs/installation.md) and [Quick Start](docs/quickstart.md)
-guides for the full walkthrough.
+To run server and TUI separately (e.g. for development):
 
-## Documentation
+```bash
+# Terminal 1: start the server
+mtv-server
 
-**User Guide**
+# Terminal 2: start the TUI
+mtv-tui
+```
 
-- [Installation](docs/installation.md) -- prerequisites, install, and workspace setup
-- [Quick Start](docs/quickstart.md) -- zero-to-running in under five minutes
-- [LLM Backends](docs/llm-backends.md) -- LM Studio, Claude, and other OpenAI-compatible servers
-- [Skills and Playbooks](docs/skills-and-playbooks.md) -- extending the agent with custom content
+When running from a dev checkout with `uv run`:
 
-**Reference**
+```bash
+uv run mtv-agent       # combined
+uv run mtv-server      # server only
+uv run mtv-tui         # TUI only
+```
 
-- [CLI Reference](docs/cli-reference.md) -- subcommands, flags, and credential resolution
-- [Configuration](docs/configuration.md) -- `config.json`, `mcp.json`, and environment variables
-- [API Reference](docs/api-reference.md) -- HTTP endpoints, SSE events, and examples
-- [Architecture](docs/architecture.md) -- components, tool loop, and data flow
+## CLI
 
-**Developer Guide**
+### `mtv-agent`
 
-- [Development](docs/development.md) -- contributor setup, dev workflows, and project structure
-- [Publishing](docs/publishing.md) -- building and releasing to PyPI
-- [Web UI](web/README.md) -- frontend architecture, components, and development
+| Subcommand | Description |
+|------------|-------------|
+| *(default)* / `run` | Start the server + TUI |
+| `init [--dir DIR] [--force]` | Bootstrap `~/.mtv-agent/` with config, skills, and commands |
+| `config` | Print default `config.json` to stdout |
 
-See [docs/index.md](docs/index.md) for the full documentation index.
+### `mtv-server`
 
-## License
+Starts the API server directly (no TUI). Used for development or headless deployments.
 
-See [LICENSE](LICENSE).
+### `mtv-tui`
+
+Starts only the TUI client, connecting to an already-running server.
+
+## Configuration
+
+Both `config.json` and `mcp.json` are **required**. The server exits with a helpful error if either is missing, telling you to run `mtv-agent init`.
+
+Config files are searched in order: `./` (CWD) then `~/.mtv-agent/`.
+
+### `config.json`
+
+```json
+{
+  "llm": {
+    "baseUrl": "http://localhost:1234/v1",
+    "apiKey": "not-needed",
+    "model": null
+  },
+  "server": { "host": "0.0.0.0", "port": 8000 },
+  "skills":   { "dir": "~/.mtv-agent/skills" },
+  "commands": { "dir": "~/.mtv-agent/commands" },
+  "cache":    { "dir": "~/.mtv-agent/cache" },
+  "agent":    { "maxIterations": 20 }
+}
+```
+
+Set `model` to `null` for auto-discovery from the LLM endpoint.
+
+### `mcp.json`
+
+Defines external MCP servers. Both `stdio` and `http` transports are supported:
+
+```json
+{
+  "mcpServers": {
+    "kubectl-mtv": {
+      "transport": "stdio",
+      "command": "oc",
+      "args": ["mtv", "mcp-server"]
+    },
+    "kubectl-metrics": {
+      "transport": "stdio",
+      "command": "oc",
+      "args": ["metrics", "mcp-server", "--insecure-skip-tls-verify"]
+    }
+  }
+}
+```
+
+### Data file lookup
+
+Skills and commands directories are set in `config.json` via `skills.dir` and `commands.dir`. After running `mtv-agent init`, the config points to `~/.mtv-agent/skills/` and `~/.mtv-agent/commands/`.
+
+### Error handling
+
+The server validates configuration at startup and exits with clear guidance on failure:
+
+- **Missing config/mcp files** — lists the searched paths and suggests `mtv-agent init`
+- **MCP connection failure** — lists each failed server with its connection details and troubleshooting hints
+
+## API
+
+| Method   | Path                         | Purpose                                    |
+|----------|------------------------------|--------------------------------------------|
+| `GET`    | `/api/status`                | Model name, server count, tool count       |
+| `GET`    | `/api/mcp`                   | All servers, tools, and policies           |
+| `PUT`    | `/api/mcp`                   | Update tool policies (persisted to disk)   |
+| `GET`    | `/api/commands`              | List available slash commands              |
+| `POST`   | `/api/chat`                  | Streaming SSE chat                         |
+| `POST`   | `/api/chat/{id}/cancel`      | Cancel active stream                       |
+| `POST`   | `/api/chat/{id}/approve`     | Approve/reject a pending tool call         |
+| `GET`    | `/api/chats`                 | List saved chats                           |
+| `GET`    | `/api/chats/{id}`            | Get chat detail                            |
+| `DELETE` | `/api/chats/{id}`            | Delete a chat                              |
+
+### SSE Events
+
+| Event          | Data                            | Notes                                |
+|----------------|---------------------------------|--------------------------------------|
+| `session`      | `{session_id}`                  | First event, establishes session     |
+| `thinking`     | `{}`                            | LLM is processing                    |
+| `tool_call`    | `{name, arguments, pending}`    | `pending: true` = waiting for approval |
+| `tool_result`  | `{name, result}`                | Tool completed                       |
+| `tool_rejected`| `{name, reason}`                | Tool rejected by policy or user      |
+| `content`      | `{content}`                     | Final assistant response             |
+| `error`        | `{message}`                     | Error occurred                       |
+
+## Tool Policies
+
+Policies control whether tools run automatically, require approval, or are blocked.
+
+**Default policy is `ask`** — all external MCP tools require approval unless overridden. Skills are auto-accepted (read-only reference data).
+
+Resolution order:
+1. Per-tool override (`policy.tools.{tool_name}`)
+2. Bash prefix matching (for the bash server only)
+3. Server default (`policy.default`)
+4. Global default (`default_policy`)
+
+The **bash** server adds prefix matching — commands starting with `ls`, `cat`, `kubectl get`, etc. are auto-accepted; `rm -rf`, `shutdown`, etc. are rejected; everything else requires approval.
+
+**Managing policies from the TUI:**
+- When prompted for tool approval, choose **Always Accept** or **Always Reject** to set a persistent per-tool policy (or per-prefix for bash)
+- `/policy` — view all current policies and per-tool overrides
+- `/policy reset` — restore all policies to defaults
+
+## Commands
+
+Commands are markdown files in the `commands/` data directory that provide step-by-step instructions for common tasks. Each is exposed as a TUI slash command.
+
+| Command | Description |
+|---------|-------------|
+| `/browse-source-vms` | Browse VMs available for migration |
+| `/check-cluster-health` | Check Ceph, storage, memory, pods |
+| `/check-mtv-health` | Check MTV/Forklift operator health |
+| `/configure-vddk-image` | Manage VDDK image settings |
+| `/create-migration-target` | Create OpenShift target provider |
+| `/create-vsphere-provider` | Create vSphere source provider |
+| `/migration-status-report` | Report on all migrations |
+| `/monitor-migration-plan` | Monitor a specific migration plan |
+| `/show-migration-network-traffic` | Show per-pod network transfer rates |
+| `/troubleshoot-migration` | Diagnose failed or stuck migrations |
+
+Usage: `/command-name [optional context]`
+
+```
+> /check-mtv-health
+> /browse-source-vms show powered-on VMs from my vsphere provider
+```
+
+## TUI Commands
+
+| Command | Action |
+|---------|--------|
+| `/help` | List all commands |
+| `/ns <name\|--all>` | Set namespace (injected into tool calls) |
+| `/clear` | Clear chat and reset session |
+| `/id` | Show current session ID |
+| `/resume <id>` | Resume a saved chat session |
+| `/status` | Refresh status bar |
+| `/history` | Show saved chats |
+| `/policy` | View current tool policies |
+| `/policy reset` | Reset policies to defaults |
+| `!cmd` | Run a shell command directly |
+| `Ctrl+L` | Clear screen |
+| `Ctrl+C` | Quit |
+| `↑` / `↓` | Navigate prompt history |
+
+## Development
+
+```bash
+# Install dependencies
+uv sync
+
+# Format
+uv run ruff format .
+
+# Lint
+uv run ruff check .
+
+# Run tests
+uv run pytest tests/
+```

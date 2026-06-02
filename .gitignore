@@ -9,29 +9,21 @@ dist/
 wheels/
 *.egg-info
 
-# VSCode files
-.vscode/
-
 # Virtual environments
 .venv
 
 # Ruff cache
 .ruff_cache/
 
+# Pytest cache
+.pytest_cache/
+
 # Config (may contain API keys or tokens)
 config.json
 mcp.json
 
-# Web UI
-web/node_modules/
-web/dist/
-web/bun.lock
+# VSCode files
+.vscode/
 
-# Bundled web dist (build artifact for pip package)
-mtv_agent/web_dist/
-
-# Bundled config examples (force-included by hatch during packaging)
-mtv_agent/data/config.json.example
-mtv_agent/data/mcp.json.example
-
+# Cache
 .cache/
