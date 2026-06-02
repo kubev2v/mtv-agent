@@ -21,7 +21,7 @@ Repository = "https://github.com/kubev2v/mtv-agent"
 Issues = "https://github.com/kubev2v/mtv-agent/issues"
 
 [project.scripts]
-mtv-agent = "combined:main"
+mtv-agent = "mtv_agent.cli:main"
 mtv-server = "mtv_agent.server.app:main"
 mtv-tui = "mtv_agent.tui.app:main"
 
@@ -31,7 +31,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mtv_agent"]
-modules = ["combined"]
 
 [dependency-groups]
 dev = ["ruff", "pytest", "pytest-asyncio"]
