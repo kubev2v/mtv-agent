@@ -33,6 +33,10 @@ def bundled_mcp_example() -> Path:
     return bundled_data_path("mcp.json.example")
 
 
+def bundled_policies_example() -> Path:
+    return bundled_data_path("policies.json.example")
+
+
 # ---------------------------------------------------------------------------
 # Config file discovery
 # ---------------------------------------------------------------------------
@@ -147,7 +151,10 @@ class Settings:
     commands_dir: str = _BUNDLED_COMMANDS
     cache_dir: str = "~/.mtv-agent/cache"
     max_iterations: int = 20
+    max_history_chars: int = 80_000
     mcp_config: str | None = None
+    dump_llm: bool = False
+    dump_dir: str = "~/.mtv-agent/dumps"
 
 
 def load_settings(override: str | None = None) -> Settings:
@@ -159,6 +166,7 @@ def load_settings(override: str | None = None) -> Settings:
     commands = data.get("commands", {})
     cache = data.get("cache", {})
     agent = data.get("agent", {})
+    debug = data.get("debug", {})
 
     return Settings(
         llm_base_url=llm.get("baseUrl", Settings.llm_base_url),
@@ -170,6 +178,9 @@ def load_settings(override: str | None = None) -> Settings:
         commands_dir=commands.get("dir", Settings.commands_dir),
         cache_dir=cache.get("dir", Settings.cache_dir),
         max_iterations=agent.get("maxIterations", Settings.max_iterations),
+        max_history_chars=agent.get("maxHistoryChars", Settings.max_history_chars),
+        dump_llm=debug.get("dumpLlm", Settings.dump_llm),
+        dump_dir=debug.get("dumpDir", Settings.dump_dir),
     )
 
 

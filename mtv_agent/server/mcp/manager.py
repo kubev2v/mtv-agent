@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from mtv_agent.server.config import load_mcp_servers
+from mtv_agent.server.config import bundled_policies_example, load_mcp_servers
 from mtv_agent.server.mcp.bash import BashServer
 from mtv_agent.server.mcp.client import MCPClient
 from mtv_agent.server.mcp.skills import SkillsServer
@@ -31,30 +31,20 @@ class ServerPolicy:
     reject_prefixes: list[str] = field(default_factory=list)
 
 
-DEFAULT_BASH_POLICY = ServerPolicy(
-    default="ask",
-    accept_prefixes=[
-        "ls",
-        "cat",
-        "head",
-        "tail",
-        "wc",
-        "echo",
-        "date",
-        "pwd",
-        "kubectl get",
-        "oc get",
-        "oc whoami",
-    ],
-    reject_prefixes=[
-        "rm -rf",
-        "mkfs",
-        "shutdown",
-        "reboot",
-        "kubectl delete",
-        "oc delete",
-    ],
-)
+def _load_default_policies() -> dict:
+    """Load the bundled policies.json.example as the source of truth for defaults."""
+    path = bundled_policies_example()
+    with open(path) as f:
+        return json.load(f)
+
+
+def _parse_server_policy(data: dict) -> ServerPolicy:
+    return ServerPolicy(
+        default=data.get("default", "ask"),
+        tools=data.get("tools", {}),
+        accept_prefixes=list(data.get("accept_prefixes", [])),
+        reject_prefixes=list(data.get("reject_prefixes", [])),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -94,17 +84,13 @@ class MCPManager:
         skills_dir: str = "",
     ) -> None:
         """Connect all servers (internal + external from mcp.json)."""
-        self._policies["bash"] = ServerPolicy(
-            default=DEFAULT_BASH_POLICY.default,
-            accept_prefixes=list(DEFAULT_BASH_POLICY.accept_prefixes),
-            reject_prefixes=list(DEFAULT_BASH_POLICY.reject_prefixes),
-        )
+        self._apply_default_policies()
+
         bash = BashServer()
         self._register(bash)
 
         skills = SkillsServer(skills_dir)
         self._register(skills)
-        self._policies["skills"] = ServerPolicy(default="accept")
 
         configs = load_mcp_servers(mcp_config)
         failed: list[str] = []
@@ -143,6 +129,13 @@ class MCPManager:
         for tool in server.list_tools():
             self._tool_to_server[tool["name"]] = server
         self._policies.setdefault(server.name, ServerPolicy())
+
+    def _apply_default_policies(self) -> None:
+        """Seed policies from the bundled policies.json.example."""
+        defaults = _load_default_policies()
+        self._default_policy = defaults.get("default_policy", "ask")
+        for srv_name, pol_data in defaults.get("servers", {}).items():
+            self._policies[srv_name] = _parse_server_policy(pol_data)
 
     # -- tool operations -----------------------------------------------------
 
@@ -271,15 +264,9 @@ class MCPManager:
         self._save_policies()
 
     def _reset_policies(self) -> None:
-        """Reset all policies to built-in defaults."""
-        self._default_policy = "ask"
+        """Reset all policies to bundled defaults."""
         self._policies.clear()
-        self._policies["bash"] = ServerPolicy(
-            default=DEFAULT_BASH_POLICY.default,
-            accept_prefixes=list(DEFAULT_BASH_POLICY.accept_prefixes),
-            reject_prefixes=list(DEFAULT_BASH_POLICY.reject_prefixes),
-        )
-        self._policies["skills"] = ServerPolicy(default="accept")
+        self._apply_default_policies()
         for name in self._servers:
             if name not in self._policies:
                 self._policies[name] = ServerPolicy()

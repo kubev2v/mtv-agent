@@ -11,6 +11,7 @@ from mtv_agent.server.config import (
     bundled_config_example,
     bundled_data_path,
     bundled_mcp_example,
+    bundled_policies_example,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,14 @@ def init_workspace(target: Path | None = None, *, force: bool = False) -> Path:
     else:
         shutil.copy2(mcp_src, mcp_dst)
         created.append("mcp.json")
+
+    policies_src = bundled_policies_example()
+    policies_dst = dest / "policies.json"
+    if policies_dst.exists() and not force:
+        skipped.append("policies.json")
+    else:
+        shutil.copy2(policies_src, policies_dst)
+        created.append("policies.json")
 
     skills_src = bundled_data_path("skills")
     skills_dst = dest / "skills"

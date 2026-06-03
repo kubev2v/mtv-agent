@@ -1,13 +1,11 @@
 """Chat message display widgets."""
 
 from textual.containers import VerticalScroll
-from textual.widgets import Collapsible, Markdown, Static
+from textual.widgets import Markdown, Static
 
-from mtv_agent.tui.widgets.collapse_header import CollapseHeader
+from mtv_agent.tui.widgets.collapsible_block import CollapsibleBlock
 
 SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
-MAX_VISIBLE_LINES = 5
 
 
 class UserMessage(Static):
@@ -55,7 +53,7 @@ class AssistantMessage(Markdown):
         super().__init__(content)
 
 
-class ThinkingIndicator(Collapsible):
+class ThinkingIndicator(CollapsibleBlock):
     """Collapsible thinking log -- shows last 5 tool lines + spinner.
 
     Tool cards mounted via ``mount_tool_card`` live inside the collapsible
@@ -64,58 +62,47 @@ class ThinkingIndicator(Collapsible):
 
     DEFAULT_CSS = """
     ThinkingIndicator {
-        margin: 1 0 0 0;
-        padding: 0;
         color: $text-disabled;
         text-style: dim;
-        border-top: solid grey;
     }
-    ThinkingIndicator > CollapsibleTitle {
-        display: none;
-    }
-    ThinkingIndicator ToolCard {
+    ThinkingIndicator > .collapsible--contents ToolCard {
         margin: 0 0 0 2;
     }
     """
 
     def __init__(self) -> None:
-        self._lines: list[str] = []
-        self._log = Static("", classes="thinking-log")
-        self._log.display = False
+        self._tool_count = 0
         self._base_title = f"{SPINNER_FRAMES[0]} thinking..."
-        super().__init__(
-            self._log,
-            title=self._base_title,
-            collapsed=False,
-            collapsed_symbol="",
-            expanded_symbol="",
-        )
+        super().__init__(title=self._base_title)
         self._frame = 0
         self._timer = None
-        self._header = CollapseHeader(self._base_title, collapsed=False)
-
-    def compose(self):
-        yield self._header
-        yield from super().compose()
-
-    def watch_collapsed(self, collapsed: bool) -> None:
-        if hasattr(self, "_header"):
-            self._header.set_collapsed(collapsed)
+        self._finished = False
 
     def on_mount(self) -> None:
+        super().on_mount()
         self._timer = self.set_interval(0.15, self._tick)
+
+    def watch_collapsed(self, collapsed: bool) -> None:
+        super().watch_collapsed(collapsed)
+        if not hasattr(self, "_finished"):
+            return
+        if collapsed:
+            if self._timer is not None:
+                self._timer.stop()
+                self._timer = None
+            self.set_title(f"thinking... ({self._tool_count} tool calls)")
+        elif not self._finished:
+            if self._timer is None:
+                self._timer = self.set_interval(0.15, self._tick)
 
     def _tick(self) -> None:
         self._frame = (self._frame + 1) % len(SPINNER_FRAMES)
         self._base_title = f"{SPINNER_FRAMES[self._frame]} thinking..."
-        self._header.set_title(self._base_title)
+        self.set_title(self._base_title)
 
     def add_tool_line(self, text: str) -> None:
-        """Append a tool-call line to the log."""
-        self._lines.append(text)
-        visible = self._lines[-MAX_VISIBLE_LINES:]
-        self._log.update("\n".join(visible))
-        self._log.display = True
+        """Track tool call count."""
+        self._tool_count += 1
 
     def mount_tool_card(self, card) -> None:
         """Mount a ToolCard inside the collapsible Contents container."""
@@ -124,11 +111,11 @@ class ThinkingIndicator(Collapsible):
 
     def finish(self) -> None:
         """Collapse and stop the spinner when the answer arrives."""
+        self._finished = True
         if self._timer is not None:
             self._timer.stop()
             self._timer = None
-        self._base_title = f"thinking... ({len(self._lines)} tool calls)"
-        self._header.set_title(self._base_title)
+        self.set_title(f"thinking... ({self._tool_count} tool calls)")
         self.collapsed = True
 
 
