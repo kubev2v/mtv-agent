@@ -18,9 +18,14 @@
     "dir": "~/.mtv-agent/cache"
   },
   "agent": {
-    "maxIterations": 20
+    "maxIterations": 20,
+    "maxHistoryChars": 80000
   },
   "tui": {
     "theme": "textual-dark"
+  },
+  "debug": {
+    "dumpLlm": false,
+    "dumpDir": "~/.mtv-agent/dumps"
   }
 }

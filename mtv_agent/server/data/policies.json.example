@@ -1,0 +1,45 @@
+{
+  "default_policy": "ask",
+  "servers": {
+    "bash": {
+      "default": "ask",
+      "accept_prefixes": [
+        "ls",
+        "cat",
+        "head",
+        "tail",
+        "wc",
+        "echo",
+        "date",
+        "pwd",
+        "kubectl get",
+        "oc get",
+        "oc whoami"
+      ],
+      "reject_prefixes": [
+        "rm -rf",
+        "mkfs",
+        "shutdown",
+        "reboot",
+        "kubectl delete",
+        "oc delete"
+      ]
+    },
+    "skills": {
+      "default": "accept"
+    },
+    "kubectl-mtv": {
+      "default": "ask",
+      "tools": {
+        "mtv_read": "accept",
+        "mtv_help": "accept"
+      }
+    },
+    "kubectl-debug-queries": {
+      "default": "accept"
+    },
+    "kubectl-metrics": {
+      "default": "accept"
+    }
+  }
+}

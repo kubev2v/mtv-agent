@@ -8,6 +8,8 @@ import httpx
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
+from mtv_agent.server.llm.dump import LLMDumper
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 360
@@ -22,13 +24,31 @@ class LLMClient:
         api_key: str,
         model: str,
         timeout: int = DEFAULT_TIMEOUT,
+        dump_dir: str | None = None,
     ):
         self.model = model
+        self._dumper = LLMDumper(dump_dir) if dump_dir else None
+
+        client_kwargs: dict = {}
+        if self._dumper:
+            client_kwargs["http_client"] = httpx.AsyncClient(
+                timeout=httpx.Timeout(timeout, connect=10.0),
+                event_hooks={
+                    "request": [self._dumper.on_request],
+                    "response": [self._dumper.on_response],
+                },
+            )
+
         self._client = AsyncOpenAI(
             base_url=base_url,
             api_key=api_key,
             timeout=httpx.Timeout(timeout, connect=10.0),
+            **client_kwargs,
         )
+
+    @property
+    def dumper(self) -> LLMDumper | None:
+        return self._dumper
 
     async def chat(
         self,

@@ -9,12 +9,11 @@ from pathlib import Path
 
 from textual import on, work
 from textual.app import App, ComposeResult
-from textual.widgets import Collapsible, Static
+from textual.widgets import Static
 
 from mtv_agent.server.config import load_tui_theme, save_tui_theme
 from mtv_agent.tui.client import AgentClient
 from mtv_agent.tui.widgets.approval import ApprovalPrompt
-from mtv_agent.tui.widgets.collapse_header import CollapseHeader
 from mtv_agent.tui.widgets.chat import (
     AssistantMessage,
     ChatArea,
@@ -22,8 +21,10 @@ from mtv_agent.tui.widgets.chat import (
     ThinkingIndicator,
     UserMessage,
 )
+from mtv_agent.tui.widgets.collapsible_block import CollapsibleBlock
 from mtv_agent.tui.widgets.header import StatusBar
 from mtv_agent.tui.widgets.input import ChatInput
+from mtv_agent.tui.widgets.option_selector import OptionSelector
 from mtv_agent.tui.widgets.tool_card import ToolCard
 
 logger = logging.getLogger(__name__)
@@ -46,34 +47,8 @@ def _friendly_error(exc: Exception) -> str:
     return f"Connection lost: {msg}" if msg else "Connection lost unexpectedly"
 
 
-class _InfoBlock(Collapsible):
-    """Collapsible info section with right-aligned arrow."""
-
-    DEFAULT_CSS = """
-    _InfoBlock > CollapsibleTitle { display: none; }
-    """
-
-    def __init__(self, title: str, body: str) -> None:
-        self._header = CollapseHeader(title, collapsed=False)
-        super().__init__(
-            Static(body),
-            title=title,
-            collapsed=False,
-            collapsed_symbol="",
-            expanded_symbol="",
-        )
-
-    def compose(self):
-        yield self._header
-        yield from super().compose()
-
-    def watch_collapsed(self, collapsed: bool) -> None:
-        if hasattr(self, "_header"):
-            self._header.set_collapsed(collapsed)
-
-
-def _info_block(title: str, body: str) -> _InfoBlock:
-    return _InfoBlock(title, body)
+def _info_block(title: str, body: str) -> CollapsibleBlock:
+    return CollapsibleBlock(Static(body), title=title)
 
 
 class MTVApp(App):
@@ -201,7 +176,7 @@ class MTVApp(App):
                 self._show_policies()
         elif command == "/theme":
             self._handle_theme(parts[1:])
-        elif command == "/quit":
+        elif command in ("/quit", "/exit"):
             self.exit()
         elif command == "/help":
             self._show_help()
@@ -246,7 +221,7 @@ class MTVApp(App):
             "  /history             Show saved chats",
             "  /policy [reset]      View or reset tool policies",
             "  /theme [name]        View or change TUI theme",
-            "  /quit                Exit the application",
+            "  /quit, /exit         Exit the application",
             "  !cmd                 Run a shell command directly",
         ]
         if self._commands:
@@ -314,13 +289,12 @@ class MTVApp(App):
         themes = sorted(self.available_themes.keys())
 
         if not args:
-            lines = [f"Current theme: {self.theme}", "", "Available themes:"]
-            for t in themes:
-                marker = "  * " if t == self.theme else "    "
-                lines.append(f"{marker}{t}")
-            lines.append("")
-            lines.append("Usage: /theme <name>")
-            area.mount(_info_block("Themes", "[dim]" + "\n".join(lines) + "[/]"))
+            selector = OptionSelector(
+                title="Select theme:",
+                options=themes,
+                current=self.theme,
+            )
+            area.mount(selector)
             area.scroll_end(animate=False)
             return
 
@@ -332,6 +306,10 @@ class MTVApp(App):
             area.scroll_end(animate=False)
             return
 
+        self._apply_theme(name)
+
+    def _apply_theme(self, name: str) -> None:
+        area = self.query_one(ChatArea)
         self.theme = name
         save_tui_theme(name)
         area.mount(Static(f"[dim]Theme set to: {name} (saved)[/]"))
@@ -377,6 +355,19 @@ class MTVApp(App):
         except Exception as exc:
             area.mount(ErrorMessage(str(exc)))
         area.scroll_end(animate=False)
+
+    # -- option selector ------------------------------------------------------
+
+    @on(OptionSelector.Selected)
+    def on_option_selected(self, event: OptionSelector.Selected) -> None:
+        """Handle option selector choice (e.g. theme picker)."""
+        for selector in self.query(OptionSelector):
+            selector.remove()
+        self._apply_theme(event.value)
+        try:
+            self.query_one("#chat-input").focus()
+        except Exception:
+            pass
 
     # -- approval via arrow-key selector -------------------------------------
 

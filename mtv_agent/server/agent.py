@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import AsyncGenerator, Callable, Awaitable
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from mtv_agent.server.llm.client import LLMClient
 from mtv_agent.server.mcp.manager import MCPManager
+from mtv_agent.server.tools import ApproveFunc, execute_tool_call, trim_history
 
 logger = logging.getLogger(__name__)
-
-ApproveFunc = Callable[[str, dict], Awaitable[tuple[bool, str | None]]]
 
 
 async def run_stream(
@@ -24,33 +23,61 @@ async def run_stream(
     history: list[dict] | None = None,
     namespace: str | None = None,
     command: str | None = None,
+    session_id: str | None = None,
     max_iterations: int = 20,
+    max_history_chars: int = 80_000,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run the agent loop, yielding SSE-ready event dicts.
 
     Iterates until the LLM produces a text response or hits *max_iterations*.
+
+    **Initial message setup** (built by ``_build_messages``):
+
+    1. System prompt -- always first, sets the agent persona and instructions.
+    2. History -- previous user/assistant turns from the chat session, trimmed
+       from the oldest end to stay within *max_history_chars* so we don't
+       exceed the LLM context window.
+    3. User message -- the current request. When the user invokes a
+       slash-command (e.g. ``/check-cluster-health``), its body replaces the
+       plain user message, with the original input appended for context.
+
+    **Iteration loop** (each pass through the ``for`` loop):
+
+    - Send the messages + tool definitions to the LLM.
+    - If the LLM responds with plain text (no tool calls), yield it and stop.
+    - If the LLM requests tool calls, append its response (via ``model_dump()``)
+      to the messages list, then execute each tool and append the result.
+      The OpenAI API requires this pairing: an assistant message with
+      ``tool_calls`` followed by a ``tool`` message for each call.
+    - The loop then repeats, giving the LLM the tool results so it can
+      decide to call more tools or produce a final text answer.
+
+    Example messages list after one tool-call iteration::
+
+        [
+          {"role": "system",    "content": "<system prompt>"},
+          {"role": "user",      "content": "<history msg 1>"},
+          {"role": "assistant", "content": "<history msg 2>"},
+          {"role": "user",      "content": "<user message or command + user message>"},
+          {"role": "assistant", "tool_calls": [{"id": "...", ...}]},
+          {"role": "tool",      "tool_call_id": "...", "content": "<result>"},
+        ]
     """
     tools = mcp.get_tool_definitions()
 
-    tools_with_flags = {
-        td["function"]["name"]
-        for td in tools
-        if "flags" in td.get("function", {}).get("parameters", {}).get("properties", {})
-    }
+    messages = _build_messages(
+        system_prompt, command, history, message, max_history_chars
+    )
 
-    trimmed_history = _trim_history(history or [])
-    messages: list[dict] = [
-        {"role": "system", "content": system_prompt},
-    ]
-    if command:
-        messages.append(
-            {"role": "system", "content": f"Follow this command:\n\n{command}"}
-        )
-    messages.extend([*trimmed_history, {"role": "user", "content": message}])
+    if llm.dumper and session_id:
+        llm.dumper.set_session(session_id)
 
     for iteration in range(max_iterations):
         logger.debug("Agent iteration %d", iteration + 1)
         yield {"event": "thinking"}
+
+        if llm.dumper:
+            llm.dumper.next_iteration()
 
         try:
             response = await llm.chat(messages, tools or None)
@@ -62,108 +89,59 @@ async def run_stream(
         choice = response.choices[0]
 
         if not choice.message.tool_calls:
-            yield {
-                "event": "content",
-                "content": choice.message.content or "",
-            }
+            yield {"event": "content", "content": choice.message.content or ""}
             return
 
         messages.append(choice.message.model_dump())
 
         for tc in choice.message.tool_calls:
             name = tc.function.name
-            try:
-                args = json.loads(tc.function.arguments)
-            except json.JSONDecodeError:
-                args = {}
+            args = _parse_args(tc)
+            if namespace:
+                args.setdefault("flags", {}).setdefault("namespace", namespace)
 
-            if namespace and name in tools_with_flags:
-                flags = args.setdefault("flags", {})
-                if "namespace" not in flags:
-                    flags["namespace"] = namespace
-
-            policy = mcp.check_policy(name, args)
-
-            if policy == "reject":
-                result = "Tool call rejected by policy."
-                yield {
-                    "event": "tool_call",
-                    "name": name,
-                    "arguments": args,
-                    "pending": False,
-                }
-                yield {
-                    "event": "tool_rejected",
-                    "name": name,
-                    "reason": "blocked by policy",
-                }
-            elif policy == "ask" and approve_fn:
-                yield {
-                    "event": "tool_call",
-                    "name": name,
-                    "arguments": args,
-                    "pending": True,
-                }
-                approved, reason = await approve_fn(name, args)
-                if not approved:
-                    result = f"Tool call denied by user. {reason or ''}"
-                    yield {
-                        "event": "tool_rejected",
-                        "name": name,
-                        "reason": reason or "denied",
-                    }
+            result = ""
+            async for event in execute_tool_call(name, args, mcp, approve_fn):
+                if "_result" in event:
+                    result = event["_result"]
                 else:
-                    try:
-                        result = await mcp.call_tool(name, args)
-                    except Exception as exc:
-                        logger.exception("Tool call %s failed", name)
-                        result = f"Error executing tool: {exc}"
-                    yield {
-                        "event": "tool_result",
-                        "name": name,
-                        "result": _truncate(result),
-                    }
-            else:
-                yield {
-                    "event": "tool_call",
-                    "name": name,
-                    "arguments": args,
-                    "pending": False,
-                }
-                try:
-                    result = await mcp.call_tool(name, args)
-                except Exception as exc:
-                    logger.exception("Tool call %s failed", name)
-                    result = f"Error executing tool: {exc}"
-                yield {
-                    "event": "tool_result",
-                    "name": name,
-                    "result": _truncate(result),
-                }
+                    yield event
 
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
     yield {"event": "error", "message": "Max iterations reached"}
 
 
-MAX_HISTORY_CHARS = 80_000
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-def _trim_history(history: list[dict]) -> list[dict]:
-    """Keep only recent history that fits within a character budget."""
-    total = 0
-    result: list[dict] = []
-    for msg in reversed(history):
-        size = len(msg.get("content", ""))
-        if total + size > MAX_HISTORY_CHARS:
-            break
-        result.append(msg)
-        total += size
-    result.reverse()
-    return result
+def _build_messages(
+    system_prompt: str,
+    command: str | None,
+    history: list[dict] | None,
+    user_message: str,
+    max_history_chars: int = 80_000,
+) -> list[dict]:
+    """Assemble the initial message list for the LLM."""
+    msgs: list[dict] = [{"role": "system", "content": system_prompt}]
+    msgs.extend(trim_history(history or [], max_history_chars))
+    if command:
+        msgs.append(
+            {
+                "role": "user",
+                "content": f"Follow this command:\n\n{command}\n\nUser message: {user_message}",
+            }
+        )
+    else:
+        msgs.append({"role": "user", "content": user_message})
+    return msgs
 
 
-def _truncate(text: str, limit: int = 80_000) -> str:
-    if len(text) <= limit:
-        return text
-    return text[:limit] + "\n... (truncated)"
+def _parse_args(tc: object) -> dict:
+    """JSON-parse tool-call arguments with a safe fallback."""
+    try:
+        return json.loads(tc.function.arguments)
+    except json.JSONDecodeError:
+        return {}

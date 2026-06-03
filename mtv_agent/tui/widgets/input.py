@@ -6,7 +6,7 @@ from textual.containers import Horizontal
 from textual.events import Key
 from textual.message import Message
 from textual.suggester import SuggestFromList
-from textual.widgets import Input, Static
+from textual.widgets import Input
 
 SLASH_COMMANDS = [
     "/help",
@@ -20,6 +20,7 @@ SLASH_COMMANDS = [
     "/policy",
     "/policy reset",
     "/quit",
+    "/exit",
 ]
 
 MAX_HISTORY = 100
@@ -31,21 +32,22 @@ class ChatInput(Horizontal):
     DEFAULT_CSS = """
     ChatInput {
         dock: bottom;
-        height: 3;
+        height: auto;
         padding: 0 1;
         background: $surface;
     }
     ChatInput Input {
         width: 1fr;
-        border: solid grey;
+        border-top: solid grey;
+        border-bottom: solid grey;
+        border-left: none;
+        border-right: none;
     }
     ChatInput Input:focus {
-        border: solid grey;
-    }
-    ChatInput .hint {
-        width: auto;
-        padding: 1 1 0 1;
-        color: $text-muted;
+        border-top: solid grey;
+        border-bottom: solid grey;
+        border-left: none;
+        border-right: none;
     }
     """
 
@@ -69,7 +71,6 @@ class ChatInput(Horizontal):
             id="chat-input",
             suggester=SuggestFromList(self._all_commands, case_sensitive=False),
         )
-        yield Static("Enter ⏎  ↑↓ history  Ctrl+L clear  Ctrl+C quit", classes="hint")
 
     def update_suggestions(self, extra_commands: list[str]) -> None:
         """Add dynamic commands (e.g. playbooks) to the autocomplete list."""

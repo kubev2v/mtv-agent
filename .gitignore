@@ -27,3 +27,6 @@ mcp.json
 
 # Cache
 .cache/
+
+# Debug dumps
+dumps/

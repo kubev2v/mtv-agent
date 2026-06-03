@@ -59,7 +59,9 @@ _cancel_events: dict[str, asyncio.Event] = {}
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global llm
+    global llm, store
+
+    store = ChatStore(settings.cache_dir)
 
     model = settings.llm_model
     if not model:
@@ -75,10 +77,12 @@ async def lifespan(_app: FastAPI):
             _write_startup_error(msg)
             raise SystemExit(1) from None
 
+    dump_dir = str(Path(settings.dump_dir).expanduser()) if settings.dump_llm else None
     llm = LLMClient(
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
         model=model,
+        dump_dir=dump_dir,
     )
 
     try:
@@ -201,7 +205,9 @@ async def chat(request: Request):
                 history=history,
                 namespace=namespace,
                 command=command_body,
+                session_id=session_id,
                 max_iterations=settings.max_iterations,
+                max_history_chars=settings.max_history_chars,
             ):
                 if cancel_evt.is_set():
                     yield {
@@ -324,10 +330,8 @@ def main():
         _write_startup_error(str(exc))
         raise SystemExit(1) from None
 
-    store = ChatStore(settings.cache_dir)
-
     uvicorn.run(
-        "mtv_agent.server.app:app",
+        app,
         host=settings.host,
         port=settings.port,
         log_level="info",

@@ -36,7 +36,7 @@ def load_commands(commands_dir: str) -> dict[str, dict]:
 
     Returns a dict mapping command name to command data.
     """
-    base = Path(commands_dir)
+    base = Path(commands_dir).expanduser()
     commands: dict[str, dict] = {}
     if not base.is_dir():
         logger.warning("Commands directory not found: %s", base)

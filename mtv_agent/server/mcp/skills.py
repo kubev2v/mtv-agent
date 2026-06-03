@@ -40,7 +40,7 @@ class SkillsServer:
 
     def __init__(self, skills_dir: str):
         self._skills: dict[str, dict] = {}
-        self._load(Path(skills_dir))
+        self._load(Path(skills_dir).expanduser())
 
     def _load(self, base: Path) -> None:
         if not base.is_dir():
