@@ -2,11 +2,14 @@
 
 from textual import on
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.events import Key
 from textual.message import Message
 from textual.suggester import SuggestFromList
 from textual.widgets import Input
+
+from mtv_agent.tui.clipboard import read_system_clipboard
 
 SLASH_COMMANDS = [
     "/help",
@@ -21,9 +24,26 @@ SLASH_COMMANDS = [
     "/policy reset",
     "/quit",
     "/exit",
+    "exit",
+    "quit",
 ]
 
 MAX_HISTORY = 100
+
+
+class _ClipboardInput(Input):
+    """Input subclass that falls back to the system clipboard on paste."""
+
+    BINDINGS = [
+        Binding("ctrl+v,super+v", "paste", "Paste", show=False),
+    ]
+
+    def action_paste(self) -> None:
+        text = self.app.clipboard or read_system_clipboard()
+        if text:
+            line = text.splitlines()[0]
+            start, end = self.selection
+            self.replace(line, start, end)
 
 
 class ChatInput(Horizontal):
@@ -66,7 +86,7 @@ class ChatInput(Horizontal):
         self._all_commands: list[str] = list(SLASH_COMMANDS)
 
     def compose(self) -> ComposeResult:
-        yield Input(
+        yield _ClipboardInput(
             placeholder="Type a message or / for commands...",
             id="chat-input",
             suggester=SuggestFromList(self._all_commands, case_sensitive=False),
