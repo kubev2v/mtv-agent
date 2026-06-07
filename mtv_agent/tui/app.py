@@ -59,7 +59,7 @@ class MTVApp(App):
     Screen { layout: vertical; }
     """
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
+        ("ctrl+q,super+q", "quit", "Quit"),
         ("ctrl+l", "clear", "Clear"),
     ]
 
@@ -119,11 +119,16 @@ class MTVApp(App):
     # -- message handling ----------------------------------------------------
 
     @on(ChatInput.Submitted)
-    def on_chat_submitted(self, event: ChatInput.Submitted) -> None:
+    async def on_chat_submitted(self, event: ChatInput.Submitted) -> None:
         message = event.value
 
         if message.startswith("/"):
             self._handle_slash(message)
+            return
+
+        if message.strip().lower() in ("exit", "quit"):
+            await self.client.close()
+            self.exit()
             return
 
         area = self.query_one(ChatArea)
@@ -222,7 +227,14 @@ class MTVApp(App):
             "  /policy [reset]      View or reset tool policies",
             "  /theme [name]        View or change TUI theme",
             "  /quit, /exit         Exit the application",
+            "  exit, quit           Exit (without slash)",
             "  !cmd                 Run a shell command directly",
+            "",
+            "Clipboard:",
+            "  cmd+c / ctrl+c       Copy selected text",
+            "  cmd+v / ctrl+v       Paste from system clipboard",
+            "  Mouse drag           Select text, then copy",
+            "  cmd+q / ctrl+q       Quit the application",
         ]
         if self._commands:
             lines.append("")
@@ -491,10 +503,7 @@ class MTVApp(App):
         """Show an arrow-key selector for approve/reject and wait."""
         area = self.query_one(ChatArea)
         prompt = ApprovalPrompt(name, arguments)
-        if self._current_tool:
-            self._current_tool.mount(prompt)
-        else:
-            area.mount(prompt)
+        area.mount(prompt)
         area.scroll_end(animate=False)
 
         self._approval_event = asyncio.Event()

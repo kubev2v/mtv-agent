@@ -14,10 +14,9 @@ class ApprovalPrompt(Vertical):
 
     DEFAULT_CSS = """
     ApprovalPrompt {
-        margin: 0 0 0 4;
+        margin: 0 0 0 2;
         padding: 0 1;
         height: auto;
-        max-height: 18;
         background: $surface;
         border: solid grey;
     }
