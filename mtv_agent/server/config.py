@@ -151,7 +151,7 @@ class Settings:
     commands_dir: str = _BUNDLED_COMMANDS
     cache_dir: str = "~/.mtv-agent/cache"
     max_iterations: int = 20
-    max_history_chars: int = 80_000
+    max_history_chars: int = 160_000
     mcp_config: str | None = None
     dump_llm: bool = False
     dump_dir: str = "~/.mtv-agent/dumps"

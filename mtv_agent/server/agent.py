@@ -25,7 +25,7 @@ async def run_stream(
     command: str | None = None,
     session_id: str | None = None,
     max_iterations: int = 20,
-    max_history_chars: int = 80_000,
+    max_history_chars: int = 160_000,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run the agent loop, yielding SSE-ready event dicts.
 
@@ -89,7 +89,13 @@ async def run_stream(
         choice = response.choices[0]
 
         if not choice.message.tool_calls:
-            yield {"event": "content", "content": choice.message.content or ""}
+            final_text = choice.message.content or ""
+            messages.append({"role": "assistant", "content": final_text})
+            yield {
+                "event": "_messages_snapshot",
+                "messages": _prepare_snapshot(messages),
+            }
+            yield {"event": "content", "content": final_text}
             return
 
         messages.append(choice.message.model_dump())
@@ -122,7 +128,7 @@ def _build_messages(
     command: str | None,
     history: list[dict] | None,
     user_message: str,
-    max_history_chars: int = 80_000,
+    max_history_chars: int = 160_000,
 ) -> list[dict]:
     """Assemble the initial message list for the LLM."""
     msgs: list[dict] = [{"role": "system", "content": system_prompt}]
@@ -145,3 +151,36 @@ def _parse_args(tc: object) -> dict:
         return json.loads(tc.function.arguments)
     except json.JSONDecodeError:
         return {}
+
+
+_SNAPSHOT_TOOL_CONTENT_LIMIT = 20_000
+_SNAPSHOT_STRIP_KEYS = {"refusal", "annotations", "audio", "function_call"}
+
+
+def _prepare_snapshot(
+    messages: list[dict], tool_content_limit: int = _SNAPSHOT_TOOL_CONTENT_LIMIT
+) -> list[dict]:
+    """Build a persistable snapshot from the agent's messages list.
+
+    - Strips the system prompt (messages[0]).
+    - Truncates tool-result content to *tool_content_limit* chars.
+    - Removes null-valued metadata fields from model_dump() output.
+    """
+    result: list[dict] = []
+    for i, msg in enumerate(messages):
+        if i == 0 and msg.get("role") == "system":
+            continue
+        cleaned = {
+            k: v
+            for k, v in msg.items()
+            if k not in _SNAPSHOT_STRIP_KEYS or v is not None
+        }
+        if (
+            cleaned.get("role") == "tool"
+            and len(cleaned.get("content") or "") > tool_content_limit
+        ):
+            cleaned["content"] = (
+                cleaned["content"][:tool_content_limit] + "\n... (truncated)"
+            )
+        result.append(cleaned)
+    return result

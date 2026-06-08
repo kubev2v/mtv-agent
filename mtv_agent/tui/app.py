@@ -63,13 +63,18 @@ class MTVApp(App):
         ("ctrl+l", "clear", "Clear"),
     ]
 
-    def __init__(self, server_url: str = "http://localhost:8000"):
+    def __init__(
+        self,
+        server_url: str = "http://localhost:8000",
+        resume_id: str | None = None,
+    ):
         super().__init__()
         self.theme = load_tui_theme()
         self.client = AgentClient(server_url)
         self.session_id: str | None = None
         self._namespace: str | None = None
         self._history: list[dict] = []
+        self._resume_id = resume_id
         self._thinking: ThinkingIndicator | None = None
         self._current_tool: ToolCard | None = None
         self._approval_event: asyncio.Event | None = None
@@ -86,6 +91,8 @@ class MTVApp(App):
     async def on_mount(self) -> None:
         self._refresh_status()
         self._load_commands()
+        if self._resume_id:
+            self._resume_chat(self._resume_id)
         self.query_one("#chat-input").focus()
 
     @work(exclusive=True, thread=False)
@@ -353,10 +360,9 @@ class MTVApp(App):
                 content = msg.get("content", "")
                 if role == "user":
                     area.mount(UserMessage(content))
-                    self._history.append(msg)
-                elif role == "assistant":
+                elif role == "assistant" and content and not msg.get("tool_calls"):
                     area.mount(AssistantMessage(content))
-                    self._history.append(msg)
+                self._history.append(msg)
 
             self._update_title()
             area.mount(
@@ -564,11 +570,19 @@ class MTVApp(App):
 
 
 def main():
+    import sys
+
     parser = argparse.ArgumentParser(description="mtv-agent TUI")
     parser.add_argument(
         "--server",
         default="http://localhost:8000",
         help="Server URL (default: http://localhost:8000)",
+    )
+    parser.add_argument(
+        "--resume",
+        metavar="ID",
+        default=None,
+        help="Resume a saved chat session by ID (prefix match)",
     )
     args = parser.parse_args()
 
@@ -580,8 +594,13 @@ def main():
         filename=str(log_dir / "tui.log"),
         filemode="w",
     )
-    app = MTVApp(server_url=args.server)
+    app = MTVApp(server_url=args.server, resume_id=args.resume)
     app.run()
+
+    if app.session_id:
+        sys.stderr.write(
+            f"\nTo resume this session:\n  mtv-tui --resume {app.session_id[:8]}\n\n"
+        )
 
 
 if __name__ == "__main__":

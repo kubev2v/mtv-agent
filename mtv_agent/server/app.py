@@ -216,6 +216,9 @@ async def chat(request: Request):
                     }
                     return
                 event_name = evt.pop("event")
+                if event_name == "_messages_snapshot":
+                    all_messages = evt["messages"]
+                    continue
                 if event_name == "content":
                     assistant_content = evt.get("content", "")
                 yield {
@@ -232,7 +235,14 @@ async def chat(request: Request):
             _approval_queues.pop(session_id, None)
             _cancel_events.pop(session_id, None)
             if assistant_content:
-                all_messages.append({"role": "assistant", "content": assistant_content})
+                if not any(
+                    m.get("role") == "assistant"
+                    and m.get("content") == assistant_content
+                    for m in all_messages[-1:]
+                ):
+                    all_messages.append(
+                        {"role": "assistant", "content": assistant_content}
+                    )
                 try:
                     store.save(session_id, all_messages)
                 except Exception:
