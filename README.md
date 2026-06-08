@@ -98,7 +98,7 @@ uv run mtv-tui         # TUI only
 
 | Subcommand | Description |
 |------------|-------------|
-| *(default)* / `run` | Start the server + TUI |
+| *(default)* / `run [--resume ID]` | Start the server + TUI (optionally resume a saved session) |
 | `init [--dir DIR] [--force]` | Bootstrap `~/.mtv-agent/` with config, skills, and commands |
 | `config` | Print default `config.json` to stdout |
 
@@ -108,7 +108,7 @@ Starts the API server directly (no TUI). Used for development or headless deploy
 
 ### `mtv-tui`
 
-Starts only the TUI client, connecting to an already-running server.
+Starts only the TUI client, connecting to an already-running server. Accepts `--resume <id>` to resume a saved chat session on startup.
 
 ## Configuration
 
@@ -254,6 +254,10 @@ Usage: `/command-name [optional context]`
 | `Ctrl+L` | Clear screen |
 | `Ctrl+C` | Quit |
 | `↑` / `↓` | Navigate prompt history |
+
+On exit, the session ID and a `--resume` command are printed to the terminal for easy copy-paste.
+
+Chat history (including tool calls and results) is saved to `~/.mtv-agent/cache/` and fully restored on resume, so the LLM retains context from prior tool interactions.
 
 ## Development
 

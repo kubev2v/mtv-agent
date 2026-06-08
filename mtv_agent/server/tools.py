@@ -8,6 +8,7 @@ Handles the three policy outcomes for each tool call:
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import AsyncGenerator, Callable, Awaitable
 from typing import Any
@@ -64,21 +65,60 @@ async def _safe_call(mcp: MCPManager, name: str, args: dict) -> str:
         return f"Error executing tool: {exc}"
 
 
-def trim_history(history: list[dict], max_chars: int = 80_000) -> list[dict]:
-    """Keep only recent history that fits within a character budget."""
+def trim_history(history: list[dict], max_chars: int = 160_000) -> list[dict]:
+    """Keep only recent history that fits within a character budget.
+
+    Messages are grouped so that an assistant message with ``tool_calls`` and
+    its subsequent ``tool`` messages are treated as an atomic unit -- they are
+    never split, preventing OpenAI API errors.
+    """
+    groups = _group_messages(history)
     total = 0
-    result: list[dict] = []
-    for msg in reversed(history):
-        size = len(msg.get("content", ""))
+    kept: list[list[dict]] = []
+    for group in reversed(groups):
+        size = _group_size(group)
         if total + size > max_chars:
             break
-        result.append(msg)
+        kept.append(group)
         total += size
-    result.reverse()
-    return result
+    kept.reverse()
+    return [msg for group in kept for msg in group]
 
 
-def _truncate(text: str, limit: int = 80_000) -> str:
+def _group_messages(messages: list[dict]) -> list[list[dict]]:
+    """Group messages into atomic units for trimming.
+
+    A tool-call turn (assistant with ``tool_calls`` + following ``tool``
+    messages) is kept as one group.  Everything else is its own group.
+    """
+    groups: list[list[dict]] = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            group = [msg]
+            i += 1
+            while i < len(messages) and messages[i].get("role") == "tool":
+                group.append(messages[i])
+                i += 1
+            groups.append(group)
+        else:
+            groups.append([msg])
+            i += 1
+    return groups
+
+
+def _group_size(group: list[dict]) -> int:
+    """Estimate the character size of a message group."""
+    total = 0
+    for msg in group:
+        total += len(msg.get("content") or "")
+        if msg.get("tool_calls"):
+            total += len(json.dumps(msg["tool_calls"]))
+    return total
+
+
+def _truncate(text: str, limit: int = 160_000) -> str:
     """Cap tool output to avoid blowing up the LLM context window."""
     if len(text) <= limit:
         return text

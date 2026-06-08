@@ -121,8 +121,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     from mtv_agent.tui.app import MTVApp
 
-    app = MTVApp(server_url=base_url)
+    app = MTVApp(server_url=base_url, resume_id=getattr(args, "resume", None))
     app.run()
+
+    if app.session_id:
+        sys.stderr.write(
+            f"\nTo resume this session:\n"
+            f"  mtv-agent run --resume {app.session_id[:8]}\n\n"
+        )
 
 
 def _cmd_init(args: argparse.Namespace) -> None:
@@ -164,6 +170,12 @@ def main():
     p_run = sub.add_parser("run", help="Start server + TUI (default)")
     p_run.add_argument(
         "--port", type=int, default=8000, help="Server port (default: 8000)"
+    )
+    p_run.add_argument(
+        "--resume",
+        metavar="ID",
+        default=None,
+        help="Resume a saved chat session by ID (prefix match)",
     )
     p_run.set_defaults(func=_cmd_run)
 
