@@ -179,7 +179,9 @@ def load_settings(override: str | None = None) -> Settings:
         cache_dir=cache.get("dir", Settings.cache_dir),
         max_iterations=agent.get("maxIterations", Settings.max_iterations),
         max_history_chars=agent.get("maxHistoryChars", Settings.max_history_chars),
-        dump_llm=debug.get("dumpLlm", Settings.dump_llm),
+        dump_llm=os.environ.get("MTV_AGENT_DUMP_HTTP", "").strip().lower()
+        in ("1", "true", "yes")
+        or debug.get("dumpLlm", Settings.dump_llm),
         dump_dir=debug.get("dumpDir", Settings.dump_dir),
     )
 
