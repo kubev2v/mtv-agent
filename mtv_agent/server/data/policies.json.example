@@ -25,6 +25,13 @@
         "oc delete"
       ]
     },
+    "files": {
+      "default": "ask",
+      "tools": {
+        "list_files": "accept",
+        "read_file": "accept"
+      }
+    },
     "skills": {
       "default": "accept"
     },
