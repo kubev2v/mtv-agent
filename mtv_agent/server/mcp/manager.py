@@ -11,6 +11,7 @@ from typing import Any, Protocol, runtime_checkable
 from mtv_agent.server.config import bundled_policies_example, load_mcp_servers
 from mtv_agent.server.mcp.bash import BashServer
 from mtv_agent.server.mcp.client import MCPClient
+from mtv_agent.server.mcp.files import FilesServer
 from mtv_agent.server.mcp.skills import SkillsServer
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,9 @@ class MCPManager:
 
         bash = BashServer()
         self._register(bash)
+
+        files = FilesServer()
+        self._register(files)
 
         skills = SkillsServer(skills_dir)
         self._register(skills)
