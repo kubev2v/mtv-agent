@@ -61,6 +61,31 @@ def test_load_mcp_servers_from_file():
     assert stdio_srv.args == ["--flag"]
 
 
+def test_load_settings_dump_http_from_config():
+    data = {
+        "llm": {"baseUrl": "http://localhost:1234/v1"},
+        "debug": {"dumpHttp": True, "dumpHttpDir": "/tmp/my-dumps"},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(data, f)
+        f.flush()
+        s = load_settings(f.name)
+    assert s.dump_http is True
+    assert s.dump_http_dir == "/tmp/my-dumps"
+
+
+def test_load_settings_dump_http_dir_env_var(monkeypatch):
+    data = {"llm": {"baseUrl": "http://localhost:1234/v1"}}
+    monkeypatch.setenv("MTV_AGENT_DUMP_HTTP", "1")
+    monkeypatch.setenv("MTV_AGENT_DUMP_HTTP_DIR", "/tmp/env-dumps")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(data, f)
+        f.flush()
+        s = load_settings(f.name)
+    assert s.dump_http is True
+    assert s.dump_http_dir == "/tmp/env-dumps"
+
+
 def test_load_mcp_servers_missing_file():
     result = load_mcp_servers("/nonexistent/mcp.json")
     assert result == []

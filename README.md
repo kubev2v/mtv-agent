@@ -99,6 +99,8 @@ uv run mtv-tui         # TUI only
 | Subcommand | Description |
 |------------|-------------|
 | *(default)* / `run [--resume ID]` | Start the server + TUI (optionally resume a saved session) |
+| `run --dump-http` | Dump LLM HTTP requests/responses to `~/.mtv-agent/dumps/` |
+| `run --dump-http-dir DIR` | Set dump directory (implies `--dump-http`) |
 | `init [--dir DIR] [--force]` | Bootstrap `~/.mtv-agent/` with config, skills, and commands |
 | `config` | Print default `config.json` to stdout |
 
@@ -129,7 +131,8 @@ Config files are searched in order: `./` (CWD) then `~/.mtv-agent/`.
   "skills":   { "dir": "~/.mtv-agent/skills" },
   "commands": { "dir": "~/.mtv-agent/commands" },
   "cache":    { "dir": "~/.mtv-agent/cache" },
-  "agent":    { "maxIterations": 20 }
+  "agent":    { "maxIterations": 20 },
+  "debug":    { "dumpHttp": false, "dumpHttpDir": "~/.mtv-agent/dumps" }
 }
 ```
 

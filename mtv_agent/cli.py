@@ -92,7 +92,16 @@ def _cmd_run(args: argparse.Namespace) -> None:
             **os.environ,
             "MTV_AGENT_HOST": "127.0.0.1",
             "MTV_AGENT_PORT": str(args.port),
-            **({"MTV_AGENT_DUMP_HTTP": "1"} if args.dump_http else {}),
+            **(
+                {"MTV_AGENT_DUMP_HTTP": "1"}
+                if args.dump_http or args.dump_http_dir
+                else {}
+            ),
+            **(
+                {"MTV_AGENT_DUMP_HTTP_DIR": args.dump_http_dir}
+                if args.dump_http_dir
+                else {}
+            ),
         },
     )
 
@@ -183,6 +192,12 @@ def main():
         action="store_true",
         default=False,
         help="Dump LLM HTTP requests and responses to ~/.mtv-agent/dumps/",
+    )
+    p_run.add_argument(
+        "--dump-http-dir",
+        metavar="DIR",
+        default=None,
+        help="Directory for HTTP dump files (implies --dump-http)",
     )
     p_run.set_defaults(func=_cmd_run)
 

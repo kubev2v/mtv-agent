@@ -77,7 +77,9 @@ async def lifespan(_app: FastAPI):
             _write_startup_error(msg)
             raise SystemExit(1) from None
 
-    dump_dir = str(Path(settings.dump_dir).expanduser()) if settings.dump_llm else None
+    dump_dir = (
+        str(Path(settings.dump_http_dir).expanduser()) if settings.dump_http else None
+    )
     llm = LLMClient(
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,

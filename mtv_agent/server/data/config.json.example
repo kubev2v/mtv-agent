@@ -25,7 +25,7 @@
     "theme": "textual-dark"
   },
   "debug": {
-    "dumpLlm": false,
-    "dumpDir": "~/.mtv-agent/dumps"
+    "dumpHttp": false,
+    "dumpHttpDir": "~/.mtv-agent/dumps"
   }
 }

@@ -153,8 +153,8 @@ class Settings:
     max_iterations: int = 20
     max_history_chars: int = 160_000
     mcp_config: str | None = None
-    dump_llm: bool = False
-    dump_dir: str = "~/.mtv-agent/dumps"
+    dump_http: bool = False
+    dump_http_dir: str = "~/.mtv-agent/dumps"
 
 
 def load_settings(override: str | None = None) -> Settings:
@@ -179,10 +179,11 @@ def load_settings(override: str | None = None) -> Settings:
         cache_dir=cache.get("dir", Settings.cache_dir),
         max_iterations=agent.get("maxIterations", Settings.max_iterations),
         max_history_chars=agent.get("maxHistoryChars", Settings.max_history_chars),
-        dump_llm=os.environ.get("MTV_AGENT_DUMP_HTTP", "").strip().lower()
+        dump_http=os.environ.get("MTV_AGENT_DUMP_HTTP", "").strip().lower()
         in ("1", "true", "yes")
-        or debug.get("dumpLlm", Settings.dump_llm),
-        dump_dir=debug.get("dumpDir", Settings.dump_dir),
+        or debug.get("dumpHttp", Settings.dump_http),
+        dump_http_dir=os.environ.get("MTV_AGENT_DUMP_HTTP_DIR")
+        or debug.get("dumpHttpDir", Settings.dump_http_dir),
     )
 
 
