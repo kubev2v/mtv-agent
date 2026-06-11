@@ -6,7 +6,7 @@ help: ## Show this help message
 		awk -F ':.*## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 build: cleandist ## Build the package into dist/
-	python -m build
+	uv build
 
 clean: ## Remove caches and egg-info
 	find . -type d -name '__pycache__' -exec rm -rf {} +
@@ -16,11 +16,11 @@ cleandist: clean ## Remove dist/ and all cached artifacts
 	rm -rf dist
 
 format: ## Format code with ruff
-	ruff format mtv_agent tests
+	uv run ruff format mtv_agent tests
 
 lint: ## Lint code with ruff
-	ruff check mtv_agent tests
+	uv run ruff check mtv_agent tests
 
 test: ## Run tests with pytest
-	pytest tests/
+	uv run pytest tests/
 
