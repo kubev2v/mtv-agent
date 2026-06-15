@@ -15,6 +15,21 @@ DEFAULT_TIMEOUT = 10.0
 STREAM_TIMEOUT = 600.0
 
 
+def _raise_with_detail(response: httpx.Response) -> None:
+    """Like raise_for_status but includes FastAPI's 'detail' when available."""
+    if response.is_success:
+        return
+    detail = None
+    try:
+        body = response.json()
+        detail = body.get("detail")
+    except Exception:
+        pass
+    if detail:
+        raise httpx.HTTPStatusError(detail, request=response.request, response=response)
+    response.raise_for_status()
+
+
 class AgentClient:
     """Talks to the mtv-agent server over HTTP/SSE."""
 
@@ -29,17 +44,17 @@ class AgentClient:
 
     async def get_status(self) -> dict:
         r = await self._http.get(f"{self._base}/api/status")
-        r.raise_for_status()
+        _raise_with_detail(r)
         return r.json()
 
     async def get_mcp(self) -> dict:
         r = await self._http.get(f"{self._base}/api/mcp")
-        r.raise_for_status()
+        _raise_with_detail(r)
         return r.json()
 
     async def update_policies(self, data: dict) -> dict:
         r = await self._http.put(f"{self._base}/api/mcp", json=data)
-        r.raise_for_status()
+        _raise_with_detail(r)
         return r.json()
 
     async def set_tool_policy(self, tool_name: str, policy: str) -> dict:
@@ -59,21 +74,21 @@ class AgentClient:
 
     async def list_chats(self) -> list[dict]:
         r = await self._http.get(f"{self._base}/api/chats")
-        r.raise_for_status()
+        _raise_with_detail(r)
         return r.json()
 
     async def get_chat(self, chat_id: str) -> dict:
         r = await self._http.get(f"{self._base}/api/chats/{chat_id}")
-        r.raise_for_status()
+        _raise_with_detail(r)
         return r.json()
 
     async def delete_chat(self, chat_id: str) -> None:
         r = await self._http.delete(f"{self._base}/api/chats/{chat_id}")
-        r.raise_for_status()
+        _raise_with_detail(r)
 
     async def cancel_chat(self, session_id: str) -> None:
         r = await self._http.post(f"{self._base}/api/chat/{session_id}/cancel")
-        r.raise_for_status()
+        _raise_with_detail(r)
 
     async def approve_tool(
         self,
@@ -88,13 +103,13 @@ class AgentClient:
             f"{self._base}/api/chat/{session_id}/approve",
             json=body,
         )
-        r.raise_for_status()
+        _raise_with_detail(r)
 
     # -- SSE streaming -------------------------------------------------------
 
     async def get_commands(self) -> list[dict]:
         r = await self._http.get(f"{self._base}/api/commands")
-        r.raise_for_status()
+        _raise_with_detail(r)
         return r.json()
 
     # -- SSE streaming -------------------------------------------------------
@@ -126,7 +141,9 @@ class AgentClient:
                 f"{self._base}/api/chat",
                 json=body,
             ) as resp:
-                resp.raise_for_status()
+                if not resp.is_success:
+                    await resp.aread()
+                _raise_with_detail(resp)
                 event_type = ""
                 data_buf = ""
                 async for line in resp.aiter_lines():

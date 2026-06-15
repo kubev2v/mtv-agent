@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
 from mtv_agent.server.llm.client import LLMClient
+from mtv_agent.server.llm.response import validate_response
 from mtv_agent.server.mcp.manager import MCPManager
 from mtv_agent.server.tools import ApproveFunc, execute_tool_call, trim_history
 
@@ -26,6 +28,7 @@ async def run_stream(
     session_id: str | None = None,
     max_iterations: int = 20,
     max_history_chars: int = 160_000,
+    cancel_event: asyncio.Event | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run the agent loop, yielding SSE-ready event dicts.
 
@@ -73,6 +76,10 @@ async def run_stream(
         llm.dumper.set_session(session_id)
 
     for iteration in range(max_iterations):
+        if cancel_event and cancel_event.is_set():
+            yield {"event": "error", "message": "cancelled"}
+            return
+
         logger.debug("Agent iteration %d", iteration + 1)
         yield {"event": "thinking"}
 
@@ -83,6 +90,16 @@ async def run_stream(
             response = await llm.chat(messages, tools or None)
         except Exception as exc:
             logger.exception("LLM call failed")
+            yield {"event": "error", "message": str(exc)}
+            return
+
+        if cancel_event and cancel_event.is_set():
+            yield {"event": "error", "message": "cancelled"}
+            return
+
+        try:
+            validate_response(response)
+        except Exception as exc:
             yield {"event": "error", "message": str(exc)}
             return
 
@@ -150,6 +167,11 @@ def _parse_args(tc: object) -> dict:
     try:
         return json.loads(tc.function.arguments)
     except json.JSONDecodeError:
+        logger.warning(
+            "Malformed tool arguments for %s: %s",
+            tc.function.name,
+            tc.function.arguments[:200] if tc.function.arguments else "(empty)",
+        )
         return {}
 
 
