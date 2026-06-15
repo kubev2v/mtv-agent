@@ -13,6 +13,7 @@ from textual.widgets import Static
 
 from mtv_agent.server.config import load_tui_theme, save_tui_theme
 from mtv_agent.tui.client import AgentClient
+from mtv_agent.tui.errors import friendly_error
 from mtv_agent.tui.widgets.approval import ApprovalPrompt
 from mtv_agent.tui.widgets.chat import (
     AssistantMessage,
@@ -28,23 +29,6 @@ from mtv_agent.tui.widgets.option_selector import OptionSelector
 from mtv_agent.tui.widgets.tool_card import ToolCard
 
 logger = logging.getLogger(__name__)
-
-
-def _friendly_error(exc: Exception) -> str:
-    """Turn raw exceptions into short, readable messages."""
-    name = type(exc).__name__
-    msg = str(exc)
-    if "ConnectError" in name or "ConnectionRefused" in msg:
-        return "Server is not running (start with: uv run mtv-server)"
-    if "TimeoutException" in name or "timed out" in msg.lower():
-        return "Request timed out -- the server may be overloaded"
-    if "status_code" in msg or hasattr(exc, "response"):
-        return f"Server returned an error ({msg})"
-    if "RemoteProtocolError" in name or "Server disconnected" in msg:
-        return "Server closed the connection -- check server logs for errors"
-    if len(msg) > 120:
-        msg = msg[:120] + "..."
-    return f"Connection lost: {msg}" if msg else "Connection lost unexpectedly"
 
 
 def _info_block(title: str, body: str) -> CollapsibleBlock:
@@ -266,7 +250,7 @@ class MTVApp(App):
                 lines.append("[/]")
                 area.mount(Static("\n".join(lines)))
         except Exception as exc:
-            area.mount(ErrorMessage(str(exc)))
+            area.mount(ErrorMessage(friendly_error(exc)))
 
     @work(exclusive=False, thread=False)
     async def _show_policies(self) -> None:
@@ -290,7 +274,7 @@ class MTVApp(App):
                 )
             )
         except Exception as exc:
-            area.mount(ErrorMessage(str(exc)))
+            area.mount(ErrorMessage(friendly_error(exc)))
         area.scroll_end(animate=False)
 
     @work(exclusive=False, thread=False)
@@ -300,7 +284,7 @@ class MTVApp(App):
             await self.client.reset_policies()
             area.mount(Static("[dim]Policies reset to defaults[/]"))
         except Exception as exc:
-            area.mount(ErrorMessage(str(exc)))
+            area.mount(ErrorMessage(friendly_error(exc)))
         area.scroll_end(animate=False)
 
     def _handle_theme(self, args: list[str]) -> None:
@@ -371,7 +355,7 @@ class MTVApp(App):
                 )
             )
         except Exception as exc:
-            area.mount(ErrorMessage(str(exc)))
+            area.mount(ErrorMessage(friendly_error(exc)))
         area.scroll_end(animate=False)
 
     # -- option selector ------------------------------------------------------
@@ -475,7 +459,10 @@ class MTVApp(App):
 
                 elif event_type == "tool_result":
                     if self._current_tool:
-                        self._current_tool.set_result(evt.get("result", ""))
+                        self._current_tool.set_result(
+                            evt.get("result", ""),
+                            is_error=evt.get("error", False),
+                        )
                         self._current_tool = None
 
                 elif event_type == "tool_rejected":
@@ -497,10 +484,11 @@ class MTVApp(App):
                     area.scroll_end(animate=False)
 
         except Exception as exc:
-            self._remove_thinking()
             logger.error("Stream error: %s: %s", type(exc).__name__, exc)
-            area.mount(ErrorMessage(_friendly_error(exc)))
+            area.mount(ErrorMessage(friendly_error(exc)))
             area.scroll_end(animate=False)
+        finally:
+            self._remove_thinking()
 
         if assistant_content:
             self._history.append({"role": "assistant", "content": assistant_content})
@@ -544,6 +532,13 @@ class MTVApp(App):
                 )
             except Exception as exc:
                 logger.warning("Approval call failed: %s", exc)
+                area = self.query_one(ChatArea)
+                area.mount(ErrorMessage(f"Approval failed: {friendly_error(exc)}"))
+                area.scroll_end(animate=False)
+                try:
+                    await self.client.cancel_chat(self.session_id)
+                except Exception:
+                    pass
 
     def _remove_thinking(self) -> None:
         if self._thinking:

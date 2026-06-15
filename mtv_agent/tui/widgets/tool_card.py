@@ -58,13 +58,18 @@ class ToolCard(Collapsible):
         if hasattr(self, "_header"):
             self._header.set_collapsed(collapsed)
 
-    def set_result(self, result: str) -> None:
+    def set_result(self, result: str, is_error: bool = False) -> None:
         if len(result) > 2000:
             result = result[:2000] + "\n... (truncated in display)"
+        if is_error:
+            result = f"[bold red]Error:[/] {result}"
         self._result_widget.update(result)
         self._base_title = self._base_title.replace(" -- awaiting approval", "")
-        self._header.set_title(self._base_title)
-        self.collapsed = True
+        if is_error:
+            self._header.set_title(f"{self._base_title} [red]\\[error][/]")
+        else:
+            self._header.set_title(self._base_title)
+        self.collapsed = not is_error
 
     def set_approved(self, label: str = "Approved") -> None:
         self._base_title = self._base_title.replace(" -- awaiting approval", "")

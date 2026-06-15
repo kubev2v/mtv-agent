@@ -210,13 +210,8 @@ async def chat(request: Request):
                 session_id=session_id,
                 max_iterations=settings.max_iterations,
                 max_history_chars=settings.max_history_chars,
+                cancel_event=cancel_evt,
             ):
-                if cancel_evt.is_set():
-                    yield {
-                        "event": "error",
-                        "data": json.dumps({"message": "cancelled"}),
-                    }
-                    return
                 event_name = evt.pop("event")
                 if event_name == "_messages_snapshot":
                     all_messages = evt["messages"]
@@ -236,19 +231,15 @@ async def chat(request: Request):
         finally:
             _approval_queues.pop(session_id, None)
             _cancel_events.pop(session_id, None)
-            if assistant_content:
-                if not any(
-                    m.get("role") == "assistant"
-                    and m.get("content") == assistant_content
-                    for m in all_messages[-1:]
-                ):
-                    all_messages.append(
-                        {"role": "assistant", "content": assistant_content}
-                    )
-                try:
-                    store.save(session_id, all_messages)
-                except Exception:
-                    logger.warning("Failed to save chat %s", session_id)
+            if assistant_content and not any(
+                m.get("role") == "assistant" and m.get("content") == assistant_content
+                for m in all_messages[-1:]
+            ):
+                all_messages.append({"role": "assistant", "content": assistant_content})
+            try:
+                store.save(session_id, all_messages)
+            except Exception as exc:
+                logger.warning("Failed to save chat %s: %s", session_id, exc)
 
     return EventSourceResponse(event_generator(), ping=15)
 

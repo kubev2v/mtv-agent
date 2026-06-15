@@ -52,17 +52,21 @@ async def execute_tool_call(
     else:
         yield {"event": "tool_call", "name": name, "arguments": args, "pending": False}
 
-    result = await _safe_call(mcp, name, args)
-    yield {"event": "tool_result", "name": name, "result": _truncate(result)}
+    result, is_error = await _safe_call(mcp, name, args)
+    evt: dict = {"event": "tool_result", "name": name, "result": _truncate(result)}
+    if is_error:
+        evt["error"] = True
+    yield evt
     yield {"_result": result}
 
 
-async def _safe_call(mcp: MCPManager, name: str, args: dict) -> str:
+async def _safe_call(mcp: MCPManager, name: str, args: dict) -> tuple[str, bool]:
+    """Execute a tool, returning (result_text, is_error)."""
     try:
-        return await mcp.call_tool(name, args)
+        return await mcp.call_tool(name, args), False
     except Exception as exc:
         logger.exception("Tool call %s failed", name)
-        return f"Error executing tool: {exc}"
+        return f"Error executing tool: {exc}", True
 
 
 def trim_history(history: list[dict], max_chars: int = 160_000) -> list[dict]:
